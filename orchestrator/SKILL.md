@@ -162,30 +162,113 @@ ELIF 목표 == "리브랜딩" THEN
 
 ## Phase 3: 에이전트 라우팅
 
-PRD의 워크플로우에 따라 에이전트를 순차적으로 호출합니다.
+PRD의 워크플로우에 따라 에이전트를 **팀 단위로 병렬 호출**합니다.
+
+### 멀티 세션 실행 원칙
+
+```
+1. Orchestrator 세션은 조율만 담당 (직접 실행 X)
+2. 각 팀은 독립된 Claude Code 세션에서 실행
+3. 파일 시스템(projects/)이 세션 간 통신 채널
+4. _handoff.md가 맥락 전달 표준
+5. _status.yaml이 전체 워크플로우 상태 추적
+```
 
 ### 라우팅 규칙
 
 ```
-1. 현재 단계의 에이전트 Skill 로드
-2. 이전 단계 산출물을 입력으로 전달
-3. 에이전트 실행 → 산출물 생성
-4. 산출물을 프로젝트 폴더에 저장
-5. 사용자에게 확인 요청
-6. 승인 시 다음 단계로, 수정 요청 시 해당 단계 재실행
+1. _status.yaml에서 현재 Phase의 실행 대상 팀/에이전트 확인
+2. 병렬 실행 가능한 팀은 동시 세션으로 실행 안내
+3. 각 팀 세션: 이전 단계 _handoff.md → SKILL.md 로드 → 산출물 생성 → _handoff.md 작성
+4. 사용자에게 확인 요청
+5. 승인 시 _status.yaml 업데이트 → 다음 Phase로
+6. 수정 요청 시 해당 stage만 재실행 (의존 stage에 needs_revision 플래그)
+```
+
+### 워크플로우별 병렬 실행 맵
+
+#### Type A: PMF 탐색
+
+```
+Phase 1 - 리서치 (병렬)
+├── [Experience 세션] User Researcher + Desk Researcher
+└── [Strategy 세션] Idea Refiner
+
+Phase 2 - 기획 + 브랜딩 (병렬)
+├── [Strategy 세션] PMF Planner → Feature Planner → Scope Estimator
+└── [Growth 세션] Brand Marketer (브랜드 중요도 HIGH인 경우)
+
+Phase 3 - 디자인
+└── [Experience 세션] UX Designer → UI Designer
+
+Phase 4 - 개발 + 마케팅 (병렬)
+├── [Engineering 세션] FDE 또는 Architect → Frontend + Backend
+└── [Growth 세션] GTM Strategist + Content Writer
+
+Phase 5 - 런칭
+└── [Growth 세션] Paid Marketer
+```
+
+#### Type B: 기능 확장
+
+```
+Phase 1 - 분석
+└── [Strategy 세션] Data Analyst
+
+Phase 2 - 기획
+└── [Strategy 세션] Feature Planner → Scope Estimator
+
+Phase 3 - 디자인
+└── [Experience 세션] UX Designer → UI Designer
+
+Phase 4 - 개발
+└── [Engineering 세션] Creative Frontend + Backend Developer
+```
+
+#### Type C: 리브랜딩
+
+```
+Phase 1 - 리서치
+└── [Experience 세션] Desk Researcher
+
+Phase 2 - 브랜딩 + 디자인 (병렬)
+├── [Growth 세션] Brand Marketer
+└── [Experience 세션] UI Designer (Brand Marketer 완료 후)
+
+Phase 3 - 마케팅
+└── [Growth 세션] Content Writer + Paid Marketer
+```
+
+#### Type D: 빠른 프로토타입
+
+```
+Phase 1 - 구체화
+└── [Strategy 세션] Idea Refiner
+
+Phase 2 - 개발
+└── [Engineering 세션] FDE
+
+Phase 3 - 마케팅
+└── [Growth 세션] GTM Strategist
 ```
 
 ### 에이전트 호출 형식
 
 ```markdown
 ---
-[Stage 2: Research Agent 실행]
+[Phase 1: Research - 병렬 실행]
 
-입력:
-- PRD: projects/{project_id}/prd.md
-- 이전 산출물: (해당 없음 - 첫 단계)
+세션 A (Experience Team):
+- 에이전트: User Researcher, Desk Researcher
+- 입력: projects/{project_id}/prd.md
+- CLAUDE.md: projects/{project_id}/sessions/experience/CLAUDE.md
 
-실행 중...
+세션 B (Strategy Team):
+- 에이전트: Idea Refiner
+- 입력: projects/{project_id}/prd.md
+- CLAUDE.md: projects/{project_id}/sessions/strategy/CLAUDE.md
+
+완료 조건: 두 세션 모두 _handoff.md 작성 완료
 ---
 ```
 
@@ -193,21 +276,49 @@ PRD의 워크플로우에 따라 에이전트를 순차적으로 호출합니다
 
 ```
 projects/{project_id}/
-├── prd.md                    # PRD (v1, v2...)
+├── _status.yaml                      # 워크플로우 상태 추적
+├── _changelog.md                     # 전체 변경 이력
+├── prd.md                            # PRD (v1, v2...)
+│
+├── sessions/                          # 세션별 컨텍스트
+│   ├── orchestrator/CLAUDE.md
+│   ├── strategy/CLAUDE.md
+│   ├── experience/CLAUDE.md
+│   ├── growth/CLAUDE.md
+│   └── engineering/CLAUDE.md
+│
 ├── stage-1-research/
-│   ├── output.md             # 리서치 결과
-│   └── version-history.md
+│   ├── _handoff.md                   # 다음 에이전트에게 전달할 맥락
+│   ├── research-report.md
+│   ├── persona.md
+│   └── journey-map.md
+│
 ├── stage-2-planning/
-│   ├── output.md             # 기획 결과
-│   └── version-history.md
-└── ...
+│   ├── _handoff.md
+│   ├── feature-spec.md
+│   └── scope-estimate.md
+│
+├── stage-3-design/
+│   ├── _handoff.md
+│   ├── ux-spec.md
+│   ├── wireframes.md
+│   └── design-system.md
+│
+├── stage-4-development/
+│   ├── _handoff.md
+│   └── tech-spec.md
+│
+└── stage-5-marketing/
+    ├── _handoff.md
+    ├── gtm-plan.md
+    └── content-plan.md
 ```
 
 ---
 
 ## Phase 4: 버전 관리
 
-특정 단계가 수정되면 해당 단계 이후를 재실행합니다.
+특정 단계가 수정되면 **의존 단계만 선택적으로 재실행**합니다.
 
 ### 수정 요청 처리
 
@@ -215,22 +326,55 @@ projects/{project_id}/
 사용자: "2단계 Planning 결과에서 MVP 범위 줄여줘"
 
 Orchestrator:
-1. stage-2-planning/output.md를 v1 → v2로 버전업
-2. stage-3-design 이후 모든 산출물에 "[재생성 필요]" 플래그
-3. 수정된 Planning 기반으로 stage-3부터 순차 재실행
+1. _status.yaml에서 stage-2-planning의 의존 관계 확인
+2. stage-2-planning 상태를 in_progress로 변경
+3. stage-3-design 이후 의존 stage만 needs_revision으로 변경
+4. 수정 완료 후 _handoff.md 업데이트
+5. needs_revision 상태인 stage부터 재실행
+6. 독립적인 stage(예: Marketing)는 영향 없으면 유지
 ```
 
-### 버전 히스토리 형식
+### _status.yaml 기반 수정 영향도 추적
+
+```yaml
+# 수정 전
+workflow:
+  - stage: planning
+    status: completed
+  - stage: design
+    status: completed
+    depends_on: [planning]
+  - stage: development
+    status: completed
+    depends_on: [design]
+  - stage: marketing
+    status: completed
+    depends_on: [planning]  # design이 아닌 planning에 의존
+
+# planning 수정 후
+workflow:
+  - stage: planning
+    status: in_progress      # 재작업 중
+  - stage: design
+    status: needs_revision   # planning에 의존 → 재생성 필요
+  - stage: development
+    status: needs_revision   # design에 의존 → 재생성 필요
+  - stage: marketing
+    status: needs_revision   # planning에 의존 → 재생성 필요
+```
+
+### _changelog.md 형식
 
 ```markdown
-# Version History
+# Changelog
 
-## v2 (2024-01-15)
-- 변경 사항: MVP 범위 축소 - 위험도 체크 기능만
-- 트리거: 사용자 요청
-- 영향 받은 단계: Design, Development
+## v2 (2026-02-25)
+- **변경**: stage-2-planning - MVP 범위 축소 (위험도 체크 기능만)
+- **트리거**: 사용자 요청
+- **영향 stage**: design, development, marketing
+- **영향 없음**: research (planning에 의존하지 않음)
 
-## v1 (2024-01-14)
+## v1 (2026-02-25)
 - 초기 버전
 ```
 
@@ -250,7 +394,8 @@ Orchestrator:
 "[N]단계 다시 실행해줘"
 "[N]단계 수정: [변경 내용]"
 "다음 단계 진행해줘"
-"전체 진행 상황 보여줘"
+"전체 진행 상황 보여줘"      # _status.yaml 기반 상태 표시
+"핸드오프 확인해줘"           # 최근 _handoff.md 요약
 ```
 
 ### 프로젝트 관리 명령어
@@ -258,51 +403,83 @@ Orchestrator:
 "프로젝트 목록 보여줘"
 "[프로젝트명] 이어서 진행"
 "현재 PRD 보여줘"
+"세션 시작해줘"              # 팀별 세션 실행 안내
 ```
 
 ---
 
 ## Integration with Other Skills
 
-이 Skill은 다른 에이전트 Skill들을 호출합니다:
-- `agents/research/SKILL.md` - 리서치 단계
-- `agents/branding/SKILL.md` - 브랜딩 단계 (커뮤니티/미디어 서비스 필수)
-- `agents/planning/SKILL.md` - 기획 단계
-- `agents/design/SKILL.md` - 디자인 단계
-- `agents/development/SKILL.md` - 개발 단계
-- `agents/marketing/SKILL.md` - 마케팅/GTM 단계
-- `agents/analysis/SKILL.md` - 분석 단계
+이 Skill은 팀 단위로 에이전트 Skill들을 조율합니다.
 
-### 에이전트 의존성 그래프
+### Research Stage
+- `agents/experience/user-researcher/SKILL.md` - 유저 리서치
+- `agents/experience/desk-researcher/SKILL.md` - 데스크 리서치
+
+### Branding Stage
+- `agents/growth/brand-marketer/SKILL.md` - 브랜딩 (커뮤니티/미디어 서비스 필수)
+
+### Planning Stage
+- `agents/strategy/idea-refiner/SKILL.md` - 아이디어 구체화
+- `agents/strategy/pmf-planner/SKILL.md` - PMF 기획
+- `agents/strategy/feature-planner/SKILL.md` - 기능 기획
+- `agents/strategy/scope-estimator/SKILL.md` - 범위/일정 산정
+- `agents/strategy/policy-architect/SKILL.md` - 정책 설계
+- `agents/strategy/business-strategist/SKILL.md` - 사업 전략
+
+### Analysis Stage
+- `agents/strategy/data-analyst/SKILL.md` - 데이터 분석
+
+### Design Stage
+- `agents/experience/ux-designer/SKILL.md` - UX 설계
+- `agents/experience/ui-designer/SKILL.md` - UI 디자인
+
+### Development Stage
+- `agents/engineering/architect/SKILL.md` - 아키텍처 설계
+- `agents/engineering/fde/SKILL.md` - 빠른 프로토타입
+- `agents/engineering/creative-frontend/SKILL.md` - 인터랙티브 프론트엔드
+- `agents/engineering/backend-developer/SKILL.md` - 백엔드 개발
+- `agents/engineering/api-developer/SKILL.md` - API 개발
+- `agents/engineering/data-collector/SKILL.md` - 데이터 수집
+- `agents/engineering/data-engineer/SKILL.md` - 데이터 엔지니어링
+- `agents/engineering/cloud-admin/SKILL.md` - 클라우드 인프라
+
+### Marketing Stage
+- `agents/growth/gtm-strategist/SKILL.md` - GTM 전략
+- `agents/growth/content-writer/SKILL.md` - 콘텐츠 작성
+- `agents/growth/paid-marketer/SKILL.md` - 페이드 마케팅
+
+### 에이전트 의존성 그래프 (팀 기반 병렬 실행)
 
 ```
                     ┌─────────────┐
-                    │ Orchestrator│
+                    │ Orchestrator│  ← 조율 전용 세션
                     └──────┬──────┘
                            │
-           ┌───────────────┼───────────────┐
-           ▼               ▼               ▼
-      ┌─────────┐    ┌──────────┐    ┌──────────┐
-      │Research │    │ Analysis │    │ Branding │
-      └────┬────┘    └────┬─────┘    └────┬─────┘
-           │              │               │
-           └──────────────┼───────────────┘
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+        ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │Experience│ │ Strategy │ │  Growth   │
+        │ Research │ │  Refine  │ │ Branding │  ← Phase 1 (병렬)
+        └────┬─────┘ └────┬─────┘ └────┬─────┘
+             │            │            │
+             └────────────┼────────────┘
                           ▼
                     ┌──────────┐
-                    │ Planning │
+                    │ Strategy │
+                    │ Planning │  ← Phase 2
                     └────┬─────┘
                          ▼
                     ┌──────────┐
-                    │  Design  │
+                    │Experience│
+                    │  Design  │  ← Phase 3
                     └────┬─────┘
-                         ▼
-                    ┌──────────┐
-                    │Development│
-                    └────┬─────┘
-                         ▼
-                    ┌──────────┐
-                    │Marketing │
-                    └──────────┘
+              ┌──────────┼──────────┐
+              ▼                     ▼
+        ┌───────────┐        ┌──────────┐
+        │Engineering│        │  Growth   │
+        │   Build   │        │ Marketing │  ← Phase 4 (병렬)
+        └───────────┘        └──────────┘
 ```
 
 ---
@@ -312,23 +489,13 @@ Orchestrator:
 ```
 User: 전세사기 예방 서비스 만들고 싶어
 
-Orchestrator: 
+Orchestrator:
 좋은 아이디어네요! 구체화를 위해 몇 가지 질문드릴게요.
 
 Q1. 궁극적인 목표는 무엇인가요?
-a) PMF 탐색 - 새로운 제품의 시장 적합성 확인
-b) 가설 검증 - 특정 가설의 유효성 실험
-...
+a) PMF 탐색 ...
 
 User: a) PMF 탐색
-
-Orchestrator:
-Q2. 이 프로젝트가 성공하면 어떤 변화가 일어나나요?
-
-User: 
-- 사용자: 계약 전 위험도를 확인하고 안심할 수 있다
-- 비즈니스: 월 1,000명 이상 사용
-- 측정: 체크 완료 후 "유용했다" 평가 80% 이상
 
 ...(질문 계속)...
 
@@ -337,11 +504,35 @@ PRD를 생성했습니다. 확인해주세요.
 
 [PRD 내용 표시]
 
-승인하시면 Research 단계부터 시작합니다.
-수정이 필요하면 알려주세요.
+프로젝트 초기화 완료:
+- projects/jeonse-guard/_status.yaml 생성
+- projects/jeonse-guard/sessions/ 세션 컨텍스트 생성
+- projects/jeonse-guard/prd.md 저장
 
 User: 승인
 
 Orchestrator:
-[Stage 1: Research Agent 실행 중...]
+Phase 1 (Research) 시작합니다. 다음 세션들을 병렬로 실행하세요:
+
+[세션 A - Experience Team]
+  cd solopreneur-agents
+  claude "projects/jeonse-guard/sessions/experience/CLAUDE.md 읽고 작업 시작"
+  → User Researcher + Desk Researcher 실행
+
+[세션 B - Strategy Team]
+  cd solopreneur-agents
+  claude "projects/jeonse-guard/sessions/strategy/CLAUDE.md 읽고 작업 시작"
+  → Idea Refiner 실행
+
+두 세션 모두 완료되면 알려주세요.
+
+User: 완료됨
+
+Orchestrator:
+_status.yaml 확인... Phase 1 완료.
+핸드오프 요약:
+- Research: 타겟 페르소나 "지은" 정의, 모바일 퍼스트 확인
+- Idea Refiner: 핵심 가치 = "3분 안에 위험도 확인"
+
+Phase 2 (Planning) 진행합니다...
 ```
