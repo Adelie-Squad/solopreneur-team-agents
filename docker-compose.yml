@@ -1,0 +1,34 @@
+services:
+  bot:
+    build: .
+    container_name: solopreneur-bot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - CLAUDE_CODE_PATH=${CLAUDE_CODE_PATH:-claude}
+      - OWNER_NAME=${OWNER_NAME}
+      - OWNER_ROLE=${OWNER_ROLE}
+      - REPOS_BASE_PATH=${REPOS_BASE_PATH:-/repos}
+      - TZ=Asia/Seoul
+    volumes:
+      - ${REPOS_BASE_PATH:-./repos}:/repos
+      - ./core:/app/core:ro
+      - ./routines:/app/routines:ro
+      - ./.env:/app/.env:ro
+    command: python src/bot.py
+
+  scheduler:
+    build: .
+    container_name: solopreneur-scheduler
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - CLAUDE_CODE_PATH=${CLAUDE_CODE_PATH:-claude}
+      - REPOS_BASE_PATH=${REPOS_BASE_PATH:-/repos}
+      - TZ=Asia/Seoul
+    volumes:
+      - ${REPOS_BASE_PATH:-./repos}:/repos
+      - ./core:/app/core:ro
+      - ./routines:/app/routines:ro
+      - ./.env:/app/.env:ro
+    command: python src/scheduler.py

@@ -1,0 +1,7 @@
+discord.py>=2.3.0
+python-dotenv>=1.0.0
+APScheduler>=3.10.0
+requests>=2.31.0
+PyYAML>=6.0
+rich>=13.0.0
+PyGithub>=2.1.0

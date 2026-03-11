@@ -1,6 +1,6 @@
 # Solo Founder Agents
 
-> 1인 창업자를 위한 AI 에이전트 협업 시스템. 팀 기반 멀티 세션 구조로 동작합니다.
+> 1인 창업자를 위한 24/7 AI 비서 시스템. Discord 봇 + 자동 루틴 + 팀 기반 에이전트로 동작한다.
 
 ## 핵심 철학
 
@@ -11,11 +11,29 @@
 ## 프로젝트 구조
 
 ```
-orchestrator/SKILL.md              → 프로젝트 시작점, 워크플로우 조율
-agents/{team}/{agent}/SKILL.md     → 개별 에이전트 정의
+setup.py                          → 설치 마법사 (최초 1회)
+docker-compose.yml                → 크로스플랫폼 실행
+core/                             → 오너 프로필, 원칙, 글쓰기 스타일
+  OWNER.md, PRINCIPLES.md, VOICE.md, products.json
+src/
+  bot.py                          → Discord 봇 (명령 수신 → Claude Code 실행)
+  scheduler.py                    → 24시간 루틴 자동 실행
+cli/
+  new_project.py                  → 프로젝트 생성 CLI
+  status.py                       → 현황 대시보드
+routines/                         → 루틴 프롬프트 (수정 가능)
+orchestrator/SKILL.md             → 프로젝트 워크플로우 조율
+agents/{team}/{agent}/SKILL.md    → 개별 에이전트 정의 (27개)
 agents/_teams/{team}/TEAM_KNOWLEDGE.md → 팀 공유 지식
-templates/                         → PRD, 핸드오프, 상태 파일 템플릿
-projects/                          → 프로젝트별 산출물
+templates/                        → PRD, 핸드오프, 상태 파일 템플릿
+```
+
+## 3-Layer 컨텍스트
+
+```
+Layer 0: Universal (core/)       → 모든 세션에 공유
+Layer 1: Product (~/repos/{slug}/) → 제품별 격리
+Layer 2: Project (projects/{id}/)  → 프로젝트별 격리
 ```
 
 ## 팀 구성
@@ -26,6 +44,41 @@ projects/                          → 프로젝트별 산출물
 | **Growth** | GTM Strategist, Content Writer, Brand Marketer, Paid Marketer | 마케팅, 브랜딩 |
 | **Experience** | User Researcher, Desk Researcher, UX Designer, UI Designer | 리서치, 디자인 |
 | **Engineering** | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin | 개발, 인프라 |
+
+## 자동 루틴 (KST)
+
+| 시간 | 루틴 | 채널 |
+|------|------|------|
+| 06:00 매일 | Morning Brief | #daily-brief |
+| 12:00 매일 | Signal Scan | #signals |
+| 16:00 매일 | Experiment Check | #experiments |
+| 22:00 매일 | Daily Log | #daily-brief |
+| 일 20:00 | Weekly Review | #weekly-review |
+
+## 사용법
+
+### 설치
+```bash
+cp .env.example .env && python setup.py
+```
+
+### Discord 명령
+`#owner-command` 채널에 메시지 → Claude Code가 응답
+
+### 새 프로젝트
+```bash
+python cli/new_project.py
+```
+
+### 현황 확인
+```bash
+python cli/status.py
+```
+
+### 프로젝트에서 직접 작업
+```bash
+cd ~/repos/my-product/projects/pmf-validation && claude
+```
 
 ## 멀티 세션 실행 규칙
 

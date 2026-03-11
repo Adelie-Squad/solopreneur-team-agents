@@ -2,6 +2,13 @@
 projects/*
 !projects/.gitkeep
 
+# Environment
+.env
+repos/
+
+# Generated
+core/products.json
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -19,5 +26,15 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Docs
-docs/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Docker
+*.pid
+
+# Plan files (development reference only)
+docs/plan_files/
