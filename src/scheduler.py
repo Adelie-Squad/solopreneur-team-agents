@@ -1,6 +1,7 @@
 """
 src/scheduler.py
-24시간 루틴 자동 실행 + Discord 보고 + 메모리 자동 저장
+Automated routine execution + messenger reporting + memory auto-save.
+Supports: Discord, Slack, Telegram (configured via MESSENGER env var)
 """
 
 import os
@@ -10,23 +11,18 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 
-import discord
-import requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
 load_dotenv()
 
-TOKEN = os.getenv("DISCORD_TOKEN")
 REPOS_BASE = Path(os.getenv("REPOS_BASE_PATH", "./repos"))
 ROUTINES_DIR = Path("routines")
 PRODUCTS_FILE = Path("core/products.json")
 
 # ──────────────────────────────────────────────
-# 루틴 정의
-# schedule: APScheduler cron 표현식
-# channel: 보고할 Discord 채널명
+# Routine definitions
 # ──────────────────────────────────────────────
 
 ROUTINES = [
@@ -36,7 +32,7 @@ ROUTINES = [
         "schedule": {"hour": 6, "minute": 0},
         "channel": "daily-brief",
         "emoji": "📋",
-        "memory_targets": [],  # 읽기 전용 루틴
+        "memory_targets": [],
     },
     {
         "id": "signal-scan",
@@ -73,7 +69,7 @@ ROUTINES = [
 ]
 
 # ──────────────────────────────────────────────
-# 유틸
+# Utilities
 # ──────────────────────────────────────────────
 
 
@@ -83,10 +79,12 @@ def load_products() -> list[dict]:
     return []
 
 
-def load_discord_config(product_slug: str) -> dict:
+def load_messenger_config(product_slug: str) -> dict:
+    """Load product's messenger config (discord/slack/telegram)."""
     import yaml
 
-    config_file = REPOS_BASE / product_slug / "discord" / "config.yaml"
+    messenger = os.getenv("MESSENGER", "discord").lower()
+    config_file = REPOS_BASE / product_slug / messenger / "config.yaml"
     if config_file.exists():
         return yaml.safe_load(config_file.read_text()) or {}
     return {}
@@ -96,11 +94,11 @@ def load_routine_prompt(routine_id: str) -> str:
     prompt_file = ROUTINES_DIR / f"{routine_id}.md"
     if prompt_file.exists():
         return prompt_file.read_text()
-    return f"# {routine_id} 루틴\n\n프롬프트 파일이 없습니다: routines/{routine_id}.md"
+    return f"# {routine_id}\n\nPrompt file missing: routines/{routine_id}.md"
 
 
 async def run_claude_async(prompt: str, cwd: Path) -> str:
-    """Claude Code --print 비동기 실행"""
+    """Run Claude Code --print asynchronously."""
     try:
         proc = await asyncio.create_subprocess_exec(
             "claude",
@@ -115,17 +113,16 @@ async def run_claude_async(prompt: str, cwd: Path) -> str:
             timeout=180,
         )
         result = stdout.decode().strip()
-        return result if result else "응답 없음"
+        return result if result else "No response"
     except asyncio.TimeoutError:
-        return "⏱️ 타임아웃 (3분 초과)"
+        return "⏱️ Timeout (exceeded 3 min)"
     except Exception as e:
-        return f"⚠️ 오류: {e}"
+        return f"⚠️ Error: {e}"
 
 
 def extract_json_blocks(text: str) -> list[dict]:
-    """루틴 결과에서 JSON 블록을 추출"""
+    """Extract JSON blocks from routine results."""
     items = []
-    # ```json ... ``` 코드 블록에서 추출
     for match in re.finditer(r"```json\s*\n(.*?)\n\s*```", text, re.DOTALL):
         raw = match.group(1).strip()
         for line in raw.splitlines():
@@ -142,7 +139,7 @@ def extract_json_blocks(text: str) -> list[dict]:
 
 
 def append_to_jsonl(file_path: Path, items: list[dict]):
-    """JSONL 파일에 항목 추가 (중복 방지)"""
+    """Append items to JSONL file (with dedup)."""
     if not items:
         return 0
 
@@ -156,7 +153,6 @@ def append_to_jsonl(file_path: Path, items: list[dict]):
     added = 0
     with open(file_path, "a") as f:
         for item in items:
-            # 날짜 자동 추가
             if "date" not in item:
                 item["date"] = datetime.now().strftime("%Y-%m-%d")
             line = json.dumps(item, ensure_ascii=False)
@@ -166,10 +162,8 @@ def append_to_jsonl(file_path: Path, items: list[dict]):
     return added
 
 
-def save_routine_memory(
-    result: str, routine: dict, product_dir: Path
-):
-    """루틴 결과에서 JSON을 추출해 JSONL 메모리에 자동 append"""
+def save_routine_memory(result: str, routine: dict, product_dir: Path):
+    """Extract JSON from routine result and append to JSONL memory."""
     targets = routine.get("memory_targets", [])
     if not targets:
         return
@@ -187,48 +181,36 @@ def save_routine_memory(
             total += added
 
     if total > 0:
-        print(
-            f"[Scheduler] 메모리 저장: {total}건 → "
-            f"{', '.join(targets)}"
-        )
-
-
-def send_discord_webhook(webhook_url: str, content: str, title: str = ""):
-    """웹훅으로 Discord 메시지 전송 (봇 없이도 가능한 폴백)"""
-    payload = {"content": f"**{title}**\n{content}" if title else content}
-    try:
-        requests.post(webhook_url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"[Scheduler] 웹훅 전송 실패: {e}")
+        print(f"[Scheduler] Memory saved: {total} item(s) → {', '.join(targets)}")
 
 
 # ──────────────────────────────────────────────
-# 루틴 실행
+# Messenger adapter (initialized at startup)
 # ──────────────────────────────────────────────
 
-# Discord 봇 클라이언트 (채널 ID로 직접 전송)
-intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+adapter = None
+
+
+# ──────────────────────────────────────────────
+# Routine execution
+# ──────────────────────────────────────────────
 
 
 async def run_routine_for_product(routine: dict, product: dict):
-    """단일 제품에 대해 루틴 실행"""
+    """Execute a routine for a single product."""
     product_slug = product["slug"]
     product_name = product["name"]
     product_dir = REPOS_BASE / product_slug
 
-    print(f"[Scheduler] {product_name} - {routine['name']} 시작")
+    print(f"[Scheduler] {product_name} - {routine['name']} starting")
 
-    # 프롬프트 로드
     prompt = load_routine_prompt(routine["id"])
-
-    # Claude Code 실행
     result = await run_claude_async(prompt, product_dir)
 
-    # 메모리 자동 저장
+    # Auto-save to memory
     save_routine_memory(result, routine, product_dir)
 
-    # 루틴 로그 항상 저장 (파일)
+    # Always save routine log to file
     log_dir = product_dir / "memory" / "routine-logs"
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / (
@@ -236,68 +218,46 @@ async def run_routine_for_product(routine: dict, product: dict):
     )
     log_file.write_text(f"# {routine['name']}\n\n{result}")
 
-    # Discord 보고
-    config = load_discord_config(product_slug)
-    guild_id = config.get("guild_id")
-
-    if guild_id and client.is_ready():
-        channel_name = routine["channel"]
-        channel_key = channel_name.replace("-", "_")
-        channel_id = config.get("channels", {}).get(channel_key)
-
-        if channel_id:
-            channel = client.get_channel(channel_id)
-            if channel:
-                title = (
-                    f"{routine['emoji']} [{routine['name']}] {product_name}"
-                    f" | {datetime.now().strftime('%m-%d %H:%M')}"
-                )
-
-                # 2000자 제한
-                message = f"**{title}**\n\n{result}"
-                chunks = [
-                    message[i : i + 1900]
-                    for i in range(0, len(message), 1900)
-                ]
-                for chunk in chunks:
-                    await channel.send(chunk)
-                print(
-                    f"[Scheduler] {product_name} - {routine['name']}"
-                    " → Discord 전송 완료"
-                )
-                return
-
-    # 웹훅 폴백
-    webhook_url = config.get("webhook_url")
-    if webhook_url:
-        title = f"{routine['emoji']} [{routine['name']}] {product_name}"
-        send_discord_webhook(webhook_url, result, title)
-    else:
-        print(
-            f"[Scheduler] {product_name}"
-            " - Discord 설정 없음. 파일에만 저장됨."
+    # Send to messenger
+    if adapter:
+        config = load_messenger_config(product_slug)
+        title = (
+            f"{routine['emoji']} [{routine['name']}] {product_name}"
+            f" | {datetime.now().strftime('%m-%d %H:%M')}"
         )
+        sent = await adapter.send_to_channel(
+            config, routine["channel"], result, title
+        )
+        if sent:
+            print(
+                f"[Scheduler] {product_name} - {routine['name']}"
+                f" → {adapter.platform} sent"
+            )
+        else:
+            print(
+                f"[Scheduler] {product_name}"
+                f" - No {adapter.platform} config. Saved to file only."
+            )
 
 
 async def run_routine(routine_id: str):
-    """모든 제품에 대해 루틴 병렬 실행"""
+    """Run a routine for all products in parallel."""
     routine = next((r for r in ROUTINES if r["id"] == routine_id), None)
     if not routine:
-        print(f"[Scheduler] 알 수 없는 루틴: {routine_id}")
+        print(f"[Scheduler] Unknown routine: {routine_id}")
         return
 
     products = load_products()
     if not products:
-        print("[Scheduler] 등록된 제품 없음")
+        print("[Scheduler] No products registered")
         return
 
-    # 모든 제품 병렬 실행
     tasks = [run_routine_for_product(routine, p) for p in products]
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ──────────────────────────────────────────────
-# 스케줄러 설정
+# Scheduler setup
 # ──────────────────────────────────────────────
 
 scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
@@ -306,9 +266,7 @@ scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 def setup_schedules():
     for routine in ROUTINES:
         schedule = routine["schedule"]
-
         trigger = CronTrigger(timezone="Asia/Seoul", **schedule)
-
         scheduler.add_job(
             run_routine,
             trigger=trigger,
@@ -316,48 +274,90 @@ def setup_schedules():
             id=routine["id"],
             replace_existing=True,
         )
-        print(f"[Scheduler] 등록: {routine['name']} ({schedule})")
+        print(f"[Scheduler] Registered: {routine['name']} ({schedule})")
 
 
 # ──────────────────────────────────────────────
-# Discord 클라이언트 이벤트
+# Entry point
 # ──────────────────────────────────────────────
 
 
-@client.event
-async def on_ready():
-    print(f"[Scheduler] Discord 연결됨: {client.user}")
+async def main():
+    global adapter
 
-    if not scheduler.running:
-        setup_schedules()
-        scheduler.start()
-        print("[Scheduler] 스케줄러 시작됨")
+    from messenger import create_adapter
 
-    # 시작 알림 (모든 제품 daily-brief 채널)
-    products = load_products()
-    for product in products:
-        config = load_discord_config(product["slug"])
-        channel_id = config.get("channels", {}).get("daily_brief")
-        if channel_id:
-            channel = client.get_channel(channel_id)
-            if channel:
-                await channel.send(
-                    f"**AI 비서 시스템 시작됨**\n"
-                    f"다음 루틴 스케줄:\n"
+    adapter = create_adapter()
+    print(f"[Scheduler] Using {adapter.platform} adapter")
+
+    messenger = os.getenv("MESSENGER", "discord").lower()
+
+    if messenger == "discord":
+        # Discord needs a client connection to send messages
+        import discord
+
+        intents = discord.Intents.default()
+        client = discord.Client(intents=intents)
+
+        @client.event
+        async def on_ready():
+            print(f"[Scheduler] {adapter.platform} connected: {client.user}")
+
+            if not scheduler.running:
+                setup_schedules()
+                scheduler.start()
+                print("[Scheduler] Scheduler started")
+
+            # Startup notification
+            products = load_products()
+            for product in products:
+                config = load_messenger_config(product["slug"])
+                await adapter.send_to_channel(
+                    config,
+                    "daily-brief",
+                    "**AI Assistant System Started**\n"
+                    "Routine schedule:\n"
                     + "\n".join(
                         f"• {r['emoji']} {r['name']}: {r['schedule']}"
                         for r in ROUTINES
-                    )
+                    ),
                 )
 
+        # Inject client into discord adapter
+        adapter._client = client
+        token = os.getenv("DISCORD_TOKEN")
+        if not token:
+            print("DISCORD_TOKEN is not set")
+            return
+        await client.start(token)
 
-# ──────────────────────────────────────────────
-# 실행
-# ──────────────────────────────────────────────
+    else:
+        # Slack and Telegram: use adapter's notifier mode
+        await adapter.start_notifier()
+
+        setup_schedules()
+        scheduler.start()
+        print("[Scheduler] Scheduler started")
+
+        # Startup notification
+        products = load_products()
+        for product in products:
+            config = load_messenger_config(product["slug"])
+            await adapter.send_to_channel(
+                config,
+                "daily-brief",
+                "**AI Assistant System Started**\n"
+                "Routine schedule:\n"
+                + "\n".join(
+                    f"• {r['emoji']} {r['name']}: {r['schedule']}"
+                    for r in ROUTINES
+                ),
+            )
+
+        # Keep running
+        stop_event = asyncio.Event()
+        await stop_event.wait()
+
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("DISCORD_TOKEN 없음")
-        exit(1)
-
-    client.run(TOKEN)
+    asyncio.run(main())

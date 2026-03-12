@@ -1,7 +1,17 @@
-discord.py>=2.3.0
+# Core
 python-dotenv>=1.0.0
 APScheduler>=3.10.0
 requests>=2.31.0
 PyYAML>=6.0
 rich>=13.0.0
 PyGithub>=2.1.0
+
+# Discord
+discord.py>=2.3.0
+
+# Slack
+slack-bolt>=1.18.0
+slack-sdk>=3.27.0
+
+# Telegram
+python-telegram-bot>=21.0
