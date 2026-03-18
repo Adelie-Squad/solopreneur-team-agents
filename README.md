@@ -4,7 +4,7 @@
 
 Running a company alone doesn't mean working alone. Solo Founder Agents gives you a full virtual team — 23 specialized AI agents organized into 4 teams — that operates around the clock via your favorite messenger, scheduled routines, and CLI tools. Just talk to it like you'd talk to a co-founder, and the right specialist picks up.
 
-**Supports:** Discord | Slack | Telegram — choose during setup.
+**Supports:** Discord | Slack | Telegram — choose one or multiple during setup.
 
 ---
 
@@ -45,7 +45,7 @@ You: "Write a launch announcement for Product Hunt"
 
 ### Multi-Platform Messenger Support
 
-Pick the platform that fits your workflow:
+Pick the platform that fits your workflow — or run multiple simultaneously:
 
 | Platform | Best For | Key Advantage |
 |----------|----------|---------------|
@@ -53,7 +53,7 @@ Pick the platform that fits your workflow:
 | **Slack** | Workspace integration | Socket Mode, native workspace feel |
 | **Telegram** | Lightweight / mobile | Simple setup, works anywhere |
 
-Set `MESSENGER=discord|slack|telegram` in `.env` or select during `setup.py`. All platforms share the same agent routing, routines, and memory system.
+Set `MESSENGER=discord`, `MESSENGER=slack`, or `MESSENGER=discord,slack` for multi-platform.
 
 ### 3-Layer Context Isolation
 
@@ -98,13 +98,14 @@ Five scheduled routines run daily without intervention:
 
 Results are posted to your messenger channels and auto-saved to memory.
 
-### One-Command Setup
+### One-Command Install (npm)
 
 ```bash
-cp .env.example .env && python setup.py
+npm install -g solo-founder-agents
+solo-agents init
 ```
 
-The wizard configures your owner profile, registers your products, generates all directory structures, initializes memory files, builds Docker, and starts services. Run it once, and you're operational.
+The wizard configures your owner profile, registers your products, generates all directory structures, initializes memory files, and gets you operational. OpenClaw-style `update` and `doctor` commands built in.
 
 ---
 
@@ -113,12 +114,12 @@ The wizard configures your owner profile, registers your products, generates all
 | Item | Required |
 |------|----------|
 | [Claude Code Max Plan](https://claude.ai) | Required |
+| Node.js 18+ | Required |
 | Docker Desktop | Required |
-| Python 3.10+ | Required |
 | Messenger Bot Token | Required (one of the below) |
 | GitHub PAT | Optional (auto-create repos) |
 
-**Messenger tokens (pick one):**
+**Messenger tokens (pick one or more):**
 | Platform | What You Need | Where to Get It |
 |----------|--------------|-----------------|
 | Discord | Bot Token | [Discord Developer Portal](https://discord.com/developers/applications) |
@@ -127,32 +128,72 @@ The wizard configures your owner profile, registers your products, generates all
 
 ---
 
-## Installation (3 Steps)
+## Installation
 
-### 1. Clone
+### 1. Install
 ```bash
-git clone <repo URL>
-cd <repo directory>
+npm install -g solo-founder-agents
 ```
 
-### 2. Configure .env
+### 2. Initialize Workspace
 ```bash
-cp .env.example .env
-# Open .env and fill in the values
+mkdir my-workspace && cd my-workspace
+solo-agents init
 ```
 
-### 3. Run Setup
-```bash
-python setup.py
-```
-
-The setup wizard handles the following:
-- Messenger platform selection (Discord / Slack / Telegram)
-- Owner profile configuration → auto-reflects in `core/OWNER.md`
-- Messenger token and bot setup with guided instructions
+The setup wizard handles:
+- Environment check (Node.js, Docker, git, Claude Code)
+- Copies agent definitions, routines, templates to your workspace
+- Messenger platform selection (Discord / Slack / Telegram / multi-platform)
+- Token configuration with guided instructions
 - Product/organization registration (multiple supported)
-- Auto-generates product directories + CLAUDE.md + memory + messenger config
-- Docker build and run
+- Auto-generates product directories + memory + messenger config
+
+### 3. Verify
+```bash
+solo-agents doctor
+```
+
+---
+
+## Usage
+
+### CLI Commands
+
+```bash
+solo-agents init          # Setup wizard
+solo-agents bot           # Start messenger bot
+solo-agents schedule      # Start automated scheduler
+solo-agents status        # Show project dashboard
+solo-agents update        # Check for updates and self-update
+solo-agents doctor        # Check environment and diagnose issues
+solo-agents run-routine   # Run a routine manually
+```
+
+### Send Commands via Messenger
+
+Send a message in the command channel (`#owner-command` on Discord/Slack, or direct message on Telegram). Keywords are analyzed to auto-route to the appropriate agent.
+
+```
+You: Draft landing page copy
+Bot: [product-name (content-writer)] ...
+```
+
+60+ keywords → 23 agents auto-matched. Falls back to general mode if no keyword match.
+
+### Run Routines Manually
+```bash
+solo-agents run-routine                    # Interactive selection
+solo-agents run-routine signal-scan        # Run specific routine
+solo-agents run-routine --all              # Run all routines
+```
+
+### Work Directly in a Project Directory
+```bash
+cd ~/repos/my-product/projects/pmf-validation
+claude
+# CLAUDE.md auto-loads with isolated context
+```
 
 ---
 
@@ -181,47 +222,6 @@ Each product's AI agents can **only see that product's context**. Other product 
 
 ---
 
-## Usage
-
-### Send Commands via Messenger
-
-Send a message in the command channel (`#owner-command` on Discord/Slack, or direct message on Telegram). Keywords are analyzed to auto-route to the appropriate agent.
-
-```
-You: Draft landing page copy
-Bot: [product-name (content-writer)] ...
-```
-
-60+ keywords → 23 agents auto-matched. Falls back to general mode if no keyword match.
-
-### Create New Project
-```bash
-python cli/new_project.py
-```
-Interactive UI: select product → project type → agents → auto-generate directory.
-
-### Check Status
-```bash
-python cli/status.py
-```
-
-### Run Routines Manually
-```bash
-python cli/run_routine.py                    # Interactive selection
-python cli/run_routine.py signal-scan        # Run specific routine
-python cli/run_routine.py -p my-product      # Specific product only
-python cli/run_routine.py --all              # Run all routines sequentially
-```
-
-### Work Directly in a Project Directory
-```bash
-cd ~/repos/my-product/projects/pmf-validation
-claude
-# CLAUDE.md auto-loads with isolated context
-```
-
----
-
 ## Automated Routine Schedule
 
 | Time | Routine | Report Channel | Memory Storage |
@@ -234,48 +234,29 @@ claude
 
 - JSON blocks in routine results are auto-extracted and appended to JSONL memory
 - All routine logs are always saved to `memory/routine-logs/`
-- Timezone can be changed via the `TZ` env variable in `docker-compose.yml`
-
----
-
-## 3-Layer Context Architecture
-
-```
-Layer 0: Universal (core/)         → Shared across all sessions (owner profile, principles, style)
-Layer 1: Product (~/repos/{slug}/) → Per-product isolation (brief, memory)
-Layer 2: Project (projects/{id}/)  → Per-project isolation (agents, experiments)
-```
 
 ---
 
 ## Structure
 
 ```
-(this repo)
-├── setup.py               ← Setup wizard
-├── docker-compose.yml     ← Cross-platform execution
-├── core/
-│   ├── OWNER.md           ← Owner profile (auto-configured by setup.py)
-│   ├── PRINCIPLES.md      ← Decision-making principles
-│   ├── VOICE.md           ← Writing style
-│   └── products.json      ← Auto-generated by setup.py
-├── routines/              ← Routine prompts (editable)
+(this repo / npm package)
+├── package.json            ← npm package config
+├── tsconfig.json           ← TypeScript config
+├── bin/solo-agents.ts      ← CLI entry point
 ├── src/
-│   ├── bot.py             ← Messenger bot + agent routing
-│   ├── scheduler.py       ← 24h routine execution + auto memory save
-│   └── messenger/         ← Platform adapters (Discord, Slack, Telegram)
-├── cli/
-│   ├── new_project.py     ← Project creation
-│   ├── status.py          ← Status dashboard
-│   └── run_routine.py     ← Manual routine execution
-├── orchestrator/          ← Project workflow orchestration
-├── agents/                ← 23 specialized agents
-│   ├── _teams/            ← Shared team knowledge
-│   ├── strategy/          ← Strategy team (7 agents)
-│   ├── growth/            ← Growth team (4 agents)
-│   ├── experience/        ← Experience team (4 agents)
-│   └── engineering/       ← Engineering team (8 agents)
-└── templates/             ← PRD, handoff, status templates
+│   ├── cli/                ← CLI commands (init, bot, schedule, status, update, doctor)
+│   ├── bot/                ← Agent routing + Claude Code execution
+│   ├── messenger/          ← Platform adapters (Discord, Slack, Telegram)
+│   ├── scheduler/          ← Cron-based routine execution + memory auto-save
+│   └── util/               ← Config, paths, logger
+├── assets/                 ← Bundled with npm package, copied on `solo-agents init`
+│   ├── agents/             ← 23 specialized agents (SKILL.md files)
+│   ├── core/               ← Owner profile, principles, writing style
+│   ├── routines/           ← Routine prompts (editable after init)
+│   ├── orchestrator/       ← Project workflow orchestration
+│   └── templates/          ← PRD, handoff, status templates
+└── dist/                   ← Compiled JavaScript (auto-generated)
 ```
 
 ---
@@ -294,29 +275,27 @@ Layer 2: Project (projects/{id}/)  → Per-project isolation (agents, experiment
 ## System Management
 
 ```bash
-# Restart
+# Update to latest version
+solo-agents update
+
+# Check environment health
+solo-agents doctor
+
+# Docker management (if using Docker deployment)
 docker compose restart
-
-# View logs
 docker compose logs -f
-
-# Stop
 docker compose down
-
-# Rebuild after update
-git pull && docker compose build && docker compose up -d
 ```
 
 ---
 
 ## Customizing Routines
 
-Edit the `.md` files in the `routines/` folder. No rebuild required.
+After `solo-agents init`, edit the `.md` files in the `routines/` folder in your workspace. No rebuild required.
 
 ```bash
 # Example: Edit Morning Brief prompt
 vim routines/morning-brief.md
-docker compose restart scheduler
 ```
 
 ---
@@ -324,24 +303,22 @@ docker compose restart scheduler
 ## FAQ
 
 **Q: How do I authenticate Claude Code?**
-A: Subscribe to Claude Code Max plan, then log in once inside the Docker container.
-`docker compose exec bot claude login`
+A: Subscribe to Claude Code Max plan, then run `claude login` in your terminal.
 
 **Q: How do I switch messenger platforms?**
-A: Change `MESSENGER=slack` (or `telegram`) in `.env`, add the required tokens, and restart:
-`docker compose restart`
+A: Change `MESSENGER=slack` (or `telegram`, or `discord,slack`) in `.env` and restart the bot.
+
+**Q: How do I use multiple messengers simultaneously?**
+A: Set `MESSENGER=discord,slack` in `.env`. The bot and scheduler will connect to both platforms.
 
 **Q: How do I add a product later?**
-A: Re-run `python setup.py`. Existing settings are preserved; only the new product is added.
+A: Re-run `solo-agents init`. Existing settings are preserved; only the new product is added.
 
-**Q: How do I change the timezone for routines?**
-A: Modify the `TZ` environment variable in `docker-compose.yml`.
-
-**Q: Path separators on Windows?**
-A: Use `/` forward slashes in `REPOS_BASE_PATH`. Docker handles the conversion.
+**Q: How do I update to the latest version?**
+A: Run `solo-agents update` — it checks npm for the latest version and offers to update.
 
 **Q: What if agent routing is wrong?**
-A: Edit the keyword-agent mapping in the `AGENT_ROUTES` dictionary in `src/bot.py`.
+A: Edit the keyword-agent mapping in `src/bot/agent-router.ts` in the package source, or raise an issue.
 
 ---
 

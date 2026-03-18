@@ -1,0 +1,21 @@
+# Source
+src/
+bin/
+tsconfig.json
+
+# Python (legacy)
+*.py
+requirements.txt
+__pycache__/
+
+# Dev
+.env
+.claude/
+.git/
+tests/
+node_modules/
+*.md
+!README.md
+
+# Docs
+docs/

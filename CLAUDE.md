@@ -8,26 +8,40 @@
 Output ≠ Goal. Output = Means to achieve the goal.
 ```
 
+## Tech Stack
+
+TypeScript + Node.js. Distributed as npm package.
+
+```bash
+npm install -g solo-founder-agents
+solo-agents init          # Setup wizard
+solo-agents bot           # Start messenger bot
+solo-agents schedule      # Start automated scheduler
+solo-agents status        # Dashboard
+solo-agents update        # Self-update (OpenClaw-style)
+solo-agents doctor        # Environment diagnostics
+solo-agents run-routine   # Manual routine execution
+```
+
 ## Project Structure
 
 ```
-setup.py                          → Setup wizard (run once)
-docker-compose.yml                → Cross-platform execution
-core/                             → Owner profile, principles, writing style
-  OWNER.md, PRINCIPLES.md, VOICE.md, products.json
+package.json                        → npm package config
+tsconfig.json                       → TypeScript config
+bin/solo-agents.ts                  → CLI entry point
 src/
-  bot.py                          → Messenger bot (agent routing + Claude Code execution)
-  scheduler.py                    → 24h automated routines + auto memory save
-  messenger/                      → Platform adapters (Discord, Slack, Telegram)
-cli/
-  new_project.py                  → Project creation CLI
-  status.py                       → Status dashboard
-  run_routine.py                  → Manual routine execution CLI
-routines/                         → Routine prompts (editable)
-orchestrator/SKILL.md             → Project workflow orchestration
-agents/{team}/{agent}/SKILL.md    → Individual agent definitions (23)
-agents/_teams/{team}/TEAM_KNOWLEDGE.md → Shared team knowledge
-templates/                        → PRD, handoff, status file templates
+  cli/                              → CLI commands (init, bot, schedule, status, update, doctor)
+  bot/                              → Agent routing + Claude Code execution
+  messenger/                        → Platform adapters (Discord, Slack, Telegram)
+  scheduler/                        → Cron-based routine execution + memory
+  util/                             → Config, paths, logger
+assets/                             → Bundled assets (copied on `solo-agents init`)
+  agents/{team}/{agent}/SKILL.md    → Agent definitions (23)
+  agents/_teams/{team}/TEAM_KNOWLEDGE.md → Shared team knowledge
+  core/                             → Owner profile, principles, writing style
+  routines/                         → Routine prompts (editable)
+  orchestrator/SKILL.md             → Project workflow orchestration
+  templates/                        → PRD, handoff, status file templates
 ```
 
 ## 3-Layer Context
@@ -50,11 +64,12 @@ Layer 2: Project (projects/{id}/)  → Per-project isolation
 ## Messenger Support
 
 Set via `MESSENGER` env var: `discord` (default), `slack`, or `telegram`.
+Multiple platforms: `MESSENGER=discord,slack` (comma-separated).
 Adapter pattern in `src/messenger/` — all platforms share the same bot logic and routing.
 
 ## Agent Routing
 
-Send a message in the command channel and `src/bot.py` analyzes keywords to auto-inject the appropriate agent's SKILL.md.
+Send a message in the command channel and `src/bot/agent-router.ts` analyzes keywords to auto-inject the appropriate agent's SKILL.md.
 - 60+ keywords → 23 agent mappings (`AGENT_ROUTES` dictionary)
 - Falls back to general mode if no match
 
@@ -69,28 +84,6 @@ Send a message in the command channel and `src/bot.py` analyzes keywords to auto
 | Sun 20:00 | Weekly Review | #weekly-review | decisions.jsonl |
 
 JSON blocks from routine results are auto-extracted → appended to JSONL memory. All logs are saved to `memory/routine-logs/`.
-
-## Usage
-
-### Installation
-```bash
-cp .env.example .env && python setup.py
-```
-
-### Messenger Commands
-Send message in command channel → auto agent routing → Claude Code responds
-
-### CLI
-```bash
-python cli/new_project.py           # New project
-python cli/status.py                # Status dashboard
-python cli/run_routine.py           # Manual routine execution
-```
-
-### Work Directly in a Project
-```bash
-cd ~/repos/my-product/projects/pmf-validation && claude
-```
 
 ## Multi-Session Execution Rules
 
