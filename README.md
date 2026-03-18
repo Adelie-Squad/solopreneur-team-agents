@@ -5,6 +5,7 @@
 Running a company alone doesn't mean working alone. Solo Founder Agents gives you a full virtual team — 23 specialized AI agents organized into 4 teams — that operates around the clock via your favorite messenger, scheduled routines, and CLI tools. Just talk to it like you'd talk to a co-founder, and the right specialist picks up.
 
 **Supports:** Discord | Slack | Telegram — choose one or multiple during setup.
+**Platforms:** Windows | macOS | Linux — cross-platform CLI with CI-tested support.
 
 ---
 
@@ -115,7 +116,7 @@ The wizard configures your owner profile, registers your products, generates all
 |------|----------|
 | [Claude Code Max Plan](https://claude.ai) | Required |
 | Node.js 18+ | Required |
-| Docker Desktop | Required |
+| Docker Desktop | Optional (for isolated execution) |
 | Messenger Bot Token | Required (one of the below) |
 | GitHub PAT | Optional (auto-create repos) |
 
@@ -129,6 +130,50 @@ The wizard configures your owner profile, registers your products, generates all
 ---
 
 ## Installation
+
+### OS-specific prerequisites
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install node git
+brew install --cask docker   # optional
+npm install -g @anthropic-ai/claude-code
+```
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+winget install Docker.DockerDesktop   # optional
+npm install -g @anthropic-ai/claude-code
+
+# Recommended
+winget install Microsoft.WindowsTerminal
+winget install Microsoft.PowerShell
+```
+</details>
+
+<details>
+<summary><b>Linux (Ubuntu/Debian)</b></summary>
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs git
+sudo apt install -y docker.io   # optional
+npm install -g @anthropic-ai/claude-code
+
+# npm global without sudo
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+</details>
 
 ### 1. Install
 ```bash
@@ -153,6 +198,8 @@ The setup wizard handles:
 ```bash
 solo-agents doctor
 ```
+
+`doctor` now shows platform info, shell name, and OS-specific checks (e.g. PowerShell 7 on Windows). Docker is checked as optional.
 
 ---
 
@@ -243,13 +290,15 @@ Each product's AI agents can **only see that product's context**. Other product 
 (this repo / npm package)
 ├── package.json            ← npm package config
 ├── tsconfig.json           ← TypeScript config
+├── .gitattributes          ← LF line ending enforcement (cross-platform)
+├── .github/workflows/      ← CI matrix (3 OS × 3 Node versions)
 ├── bin/solo-agents.ts      ← CLI entry point
 ├── src/
 │   ├── cli/                ← CLI commands (init, bot, schedule, status, update, doctor)
 │   ├── bot/                ← Agent routing + Claude Code execution
 │   ├── messenger/          ← Platform adapters (Discord, Slack, Telegram)
 │   ├── scheduler/          ← Cron-based routine execution + memory auto-save
-│   └── util/               ← Config, paths, logger
+│   └── util/               ← Config, paths, logger, platform detection
 ├── assets/                 ← Bundled with npm package, copied on `solo-agents init`
 │   ├── agents/             ← 23 specialized agents (SKILL.md files)
 │   ├── core/               ← Owner profile, principles, writing style
@@ -272,13 +321,23 @@ Each product's AI agents can **only see that product's context**. Other product 
 
 ---
 
+## Cross-Platform Support
+
+The CLI runs natively on Windows, macOS, and Linux. Key features:
+
+- **Unified command detection**: No more `which`/`where` hacks — uses `command -v` on Unix, `where` on Windows
+- **CRLF-safe parsing**: All file parsers (`.env`, JSONL, TSV) normalize line endings automatically
+- **OS-aware defaults**: Repos path defaults to `~/Documents/solo-agents-repos` on Windows, `~/repos` on Unix
+- **sudo auto-detection**: `solo-agents update` detects when `sudo` is needed on Linux/macOS
+- **CI matrix**: Every push is tested on Ubuntu, macOS, and Windows × Node 18/20/22
+
 ## System Management
 
 ```bash
-# Update to latest version
+# Update to latest version (auto-detects sudo on Unix)
 solo-agents update
 
-# Check environment health
+# Check environment health (shows platform info)
 solo-agents doctor
 
 # Docker management (if using Docker deployment)
