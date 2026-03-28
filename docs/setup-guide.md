@@ -14,16 +14,16 @@
 
 ## 왜 이 시스템인가?
 
-### 1. 23명의 전문 AI 팀원이 생긴다
+### 1. 25명의 전문 AI 팀원이 생긴다
 
-혼자 일하지만 혼자가 아닙니다. 이 시스템에는 4개 팀, 23명의 AI 전문가가 내장되어 있습니다.
+혼자 일하지만 혼자가 아닙니다. 이 시스템에는 4개 팀, 25명의 AI 전문가가 내장되어 있습니다.
 
 | 팀 | 하는 일 | 소속 에이전트 |
 |----|--------|-------------|
 | **전략팀** | 시장 분석, 사업 기획, 가설 수립, 일정 산정 | PMF Planner, Feature Planner, Data Analyst, Business Strategist, Idea Refiner, Scope Estimator, Policy Architect |
 | **그로스팀** | 마케팅 전략, 콘텐츠 작성, 브랜딩, 광고 | GTM Strategist, Content Writer, Brand Marketer, Paid Marketer |
 | **경험팀** | 유저 리서치, 시장 조사, UX/UI 설계 | User Researcher, Desk Researcher, UX Designer, UI Designer |
-| **엔지니어링팀** | 프론트/백엔드 개발, API, 데이터, 인프라 | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin |
+| **엔지니어링팀** | 프론트/백엔드 개발, API, 데이터, 인프라, 품질, 보안 | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin, QA Engineer, Security Engineer |
 
 메신저에 "랜딩페이지 카피 써줘"라고 보내면 Content Writer가, "경쟁사 분석해줘"라고 보내면 Desk Researcher가 자동으로 배정됩니다. 누구를 부를지 고민할 필요 없이 **그냥 하고 싶은 말을 하면** 알아서 적절한 전문가가 답합니다.
 
@@ -279,6 +279,18 @@ solo-agents status
 
 ---
 
+## 보안 안내
+
+이 시스템은 AI가 코드를 실행합니다. 다음 사항을 꼭 확인하세요:
+
+1. `.env` 파일이 `.gitignore`에 포함되어 있는지 확인
+2. 봇 토큰은 주기적으로 교체 (90일 권장)
+3. AI 출력을 프로덕션에 배포하기 전 반드시 검토
+4. 메신저 봇 권한은 최소한으로 설정
+5. `solo-agents doctor`를 주기적으로 실행하여 환경 점검
+
+---
+
 ## 일상적인 사용법
 
 ### 메신저에서 AI에게 일 시키기
@@ -296,7 +308,7 @@ solo-agents status
 → AI가 data-analyst 역할로 응답
 ```
 
-메시지 내용에 따라 23개 전문 에이전트 중 적절한 역할이 자동으로 선택됩니다.
+메시지 내용에 따라 25개 전문 에이전트 중 적절한 역할이 자동으로 선택됩니다.
 
 ### 자동 루틴 (손 안 대도 됨)
 

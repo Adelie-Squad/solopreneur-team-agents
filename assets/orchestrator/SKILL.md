@@ -89,22 +89,22 @@ e) 기타 (직접 입력)
 ```
 IF 목표 == "PMF 탐색" THEN
     template = "prd-pmf.md"
-    
+
     IF 서비스_특성 IN ["커뮤니티", "미디어", "라이프스타일", "D2C"] THEN
         # 브랜드가 중요한 서비스
-        workflow = [Research, Branding, Planning, Design, Development, Marketing]
+        workflow = [Research, Branding, Planning, Design, Development, QA, Marketing]
     ELSE
         # 기능/유틸리티 중심 서비스
-        workflow = [Research, Planning, Design, Development, Marketing]
-    
+        workflow = [Research, Planning, Design, Development, QA, Marketing]
+
 ELIF 목표 == "가설 검증" THEN
     template = "prd-experiment.md"
-    workflow = [Research, Planning, Design, Development]
-    
+    workflow = [Research, Planning, Design, Development, QA]
+
 ELIF 목표 == "기능 확장" THEN
     template = "prd-feature.md"
-    workflow = [Analysis, Planning, Design, Development]
-    
+    workflow = [Analysis, Planning, Design, Development, QA]
+
 ELIF 목표 == "리브랜딩" THEN
     template = "prd-pmf.md"
     workflow = [Research, Branding, Design, Marketing]
@@ -201,11 +201,14 @@ Phase 2 - 기획 + 브랜딩 (병렬)
 Phase 3 - 디자인
 └── [Experience 세션] UX Designer → UI Designer
 
-Phase 4 - 개발 + 마케팅 (병렬)
-├── [Engineering 세션] FDE 또는 Architect → Frontend + Backend
+Phase 4 - 개발
+└── [Engineering 세션] FDE 또는 Architect → Frontend + Backend
+
+Phase 5 - QA + 마케팅 (병렬)
+├── [Engineering 세션] QA Engineer
 └── [Growth 세션] GTM Strategist + Content Writer
 
-Phase 5 - 런칭
+Phase 6 - 런칭 (QA Go 판정 + 마케팅 완료 후)
 └── [Growth 세션] Paid Marketer
 ```
 
@@ -223,6 +226,9 @@ Phase 3 - 디자인
 
 Phase 4 - 개발
 └── [Engineering 세션] Creative Frontend + Backend Developer
+
+Phase 5 - QA
+└── [Engineering 세션] QA Engineer
 ```
 
 #### Type C: 리브랜딩
@@ -248,7 +254,10 @@ Phase 1 - 구체화
 Phase 2 - 개발
 └── [Engineering 세션] FDE
 
-Phase 3 - 마케팅
+Phase 3 - QA
+└── [Engineering 세션] QA Engineer
+
+Phase 4 - 마케팅
 └── [Growth 세션] GTM Strategist
 ```
 
@@ -308,7 +317,12 @@ projects/{project_id}/
 │   ├── _handoff.md
 │   └── tech-spec.md
 │
-└── stage-5-marketing/
+├── stage-5-qa/
+│   ├── _handoff.md
+│   ├── test-report.md
+│   └── bug-report.md
+│
+└── stage-6-marketing/
     ├── _handoff.md
     ├── gtm-plan.md
     └── content-plan.md
@@ -444,6 +458,12 @@ workflow:
 - `agents/engineering/data-engineer/SKILL.md` - 데이터 엔지니어링
 - `agents/engineering/cloud-admin/SKILL.md` - 클라우드 인프라
 
+### QA Stage
+- `agents/engineering/qa-engineer/SKILL.md` - 품질 검증 및 Go/No-Go 판정
+
+### Security Stage
+- `agents/engineering/security-engineer/SKILL.md` - 보안 리뷰 및 취약점 평가
+
 ### Marketing Stage
 - `agents/growth/gtm-strategist/SKILL.md` - GTM 전략
 - `agents/growth/content-writer/SKILL.md` - 콘텐츠 작성
@@ -474,12 +494,24 @@ workflow:
                     │Experience│
                     │  Design  │  ← Phase 3
                     └────┬─────┘
+                         ▼
+                    ┌───────────┐
+                    │Engineering│
+                    │   Build   │  ← Phase 4
+                    └────┬──────┘
               ┌──────────┼──────────┐
               ▼                     ▼
         ┌───────────┐        ┌──────────┐
         │Engineering│        │  Growth   │
-        │   Build   │        │ Marketing │  ← Phase 4 (병렬)
-        └───────────┘        └──────────┘
+        │    QA     │        │ Marketing │  ← Phase 5 (병렬)
+        └─────┬─────┘        └────┬─────┘
+              │                   │
+              └─────────┬─────────┘
+                        ▼
+                  ┌──────────┐
+                  │  Growth   │
+                  │  Launch   │  ← Phase 6
+                  └──────────┘
 ```
 
 ---

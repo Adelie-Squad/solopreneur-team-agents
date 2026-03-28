@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { getReposBase } from "../util/paths.js";
+import { normalizeLine } from "../util/platform.js";
 import { loadProducts, type Product } from "../util/config.js";
 import {
   DEFAULT_CHANNELS,
@@ -88,7 +89,11 @@ export class SlackAdapter implements MessengerAdapter {
         async (text: string) => { await say(text); },
         product
       );
-      await onCommand(userText, product, ctx);
+      try {
+        await onCommand(userText, product, ctx);
+      } catch (e) {
+        console.log(`[Slack] Command handler error: ${e}`);
+      }
     });
 
     console.log("[Slack Bot] Starting Socket Mode...");
@@ -188,7 +193,7 @@ export class SlackAdapter implements MessengerAdapter {
     for (const p of products) {
       const configFile = path.join(reposBase, p.slug, "slack", "config.yaml");
       if (!fs.existsSync(configFile)) continue;
-      const config = yaml.load(fs.readFileSync(configFile, "utf-8")) as Record<string, unknown>;
+      const config = yaml.load(normalizeLine(fs.readFileSync(configFile, "utf-8"))) as Record<string, unknown>;
       const channels = (config.channels || {}) as Record<string, string>;
       if (Object.values(channels).includes(channelId)) return p;
     }

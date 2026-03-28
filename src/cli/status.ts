@@ -2,11 +2,12 @@ import fs from "fs";
 import path from "path";
 import chalk from "chalk";
 import { loadProducts, loadEnv } from "../util/config.js";
+import { normalizeLine } from "../util/platform.js";
+import { getReposBase } from "../util/paths.js";
 
 function readLastJsonl(filePath: string, n = 3): Record<string, unknown>[] {
   if (!fs.existsSync(filePath)) return [];
-  const lines = fs
-    .readFileSync(filePath, "utf-8")
+  const lines = normalizeLine(fs.readFileSync(filePath, "utf-8"))
     .split("\n")
     .filter((l) => l.trim() && !l.startsWith('{"_schema'));
 
@@ -33,7 +34,7 @@ function getProjectAge(projectDir: string): string {
 
 export function statusCommand(): void {
   const env = loadEnv();
-  const reposBase = env.REPOS_BASE_PATH || "./repos";
+  const reposBase = env.REPOS_BASE_PATH || getReposBase();
 
   console.log(
     chalk.bold.cyan("\n  Project Dashboard") +

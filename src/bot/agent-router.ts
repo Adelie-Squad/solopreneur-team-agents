@@ -23,7 +23,10 @@ const AGENT_ROUTES: Record<string, [string, string]> = {
   일정: ["strategy", "scope-estimator"],
   견적: ["strategy", "scope-estimator"],
   스코프: ["strategy", "scope-estimator"],
-  // Growth
+  // Growth (longer keywords first to avoid shadowing)
+  광고: ["growth", "paid-marketer"],
+  퍼포먼스: ["growth", "paid-marketer"],
+  cpa: ["growth", "paid-marketer"],
   마케팅: ["growth", "gtm-strategist"],
   gtm: ["growth", "gtm-strategist"],
   런칭: ["growth", "gtm-strategist"],
@@ -34,9 +37,6 @@ const AGENT_ROUTES: Record<string, [string, string]> = {
   브랜드: ["growth", "brand-marketer"],
   브랜딩: ["growth", "brand-marketer"],
   네이밍: ["growth", "brand-marketer"],
-  광고: ["growth", "paid-marketer"],
-  퍼포먼스: ["growth", "paid-marketer"],
-  cpa: ["growth", "paid-marketer"],
   // Experience
   "유저 리서치": ["experience", "user-researcher"],
   인터뷰: ["experience", "user-researcher"],
@@ -76,6 +76,17 @@ const AGENT_ROUTES: Record<string, [string, string]> = {
   인프라: ["engineering", "cloud-admin"],
   도커: ["engineering", "cloud-admin"],
   "ci/cd": ["engineering", "cloud-admin"],
+  테스트: ["engineering", "qa-engineer"],
+  qa: ["engineering", "qa-engineer"],
+  품질: ["engineering", "qa-engineer"],
+  버그: ["engineering", "qa-engineer"],
+  검증: ["engineering", "qa-engineer"],
+  "보안 점검": ["engineering", "security-engineer"],
+  "접근 제어": ["engineering", "security-engineer"],
+  보안: ["engineering", "security-engineer"],
+  시큐리티: ["engineering", "security-engineer"],
+  security: ["engineering", "security-engineer"],
+  취약점: ["engineering", "security-engineer"],
 };
 
 /** Find the best matching agent for user input. */

@@ -90,9 +90,19 @@ workflow:
     artifacts: []
     handoff: null
 
-  # Phase 4: Marketing (병렬)
+  # Phase 5: QA + Marketing (병렬)
+  - stage: qa
+    phase: 5
+    agents:
+      - engineering/qa-engineer
+    team: engineering
+    status: pending
+    depends_on: [development]
+    artifacts: []
+    handoff: null
+
   - stage: marketing
-    phase: 4
+    phase: 5
     agents:
       - growth/gtm-strategist
       - growth/content-writer
@@ -102,13 +112,13 @@ workflow:
     artifacts: []
     handoff: null
 
-  # Phase 5: Launch
+  # Phase 6: Launch (QA Go 판정 + Marketing 완료 후)
   - stage: launch
-    phase: 5
+    phase: 6
     agents:
       - growth/paid-marketer
     team: growth
     status: pending
-    depends_on: [development, marketing]
+    depends_on: [qa, marketing]
     artifacts: []
     handoff: null

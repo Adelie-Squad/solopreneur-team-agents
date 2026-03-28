@@ -50,14 +50,14 @@ export async function updateCommand(channel: string): Promise<void> {
 
   if (!latest) {
     console.log(chalk.yellow("Could not reach npm registry. Check your network."));
-    console.log(chalk.dim("You can manually update: npm update -g solo-founder-agents"));
+    console.log(chalk.dim(`You can manually update: ${npmGlobalInstallCmd("solo-founder-agents@latest")}`));
     return;
   }
 
   if (isNewer(latest, current)) {
     console.log(chalk.green.bold(`\nNew version available: v${latest}`));
     console.log(`\nRun to update:`);
-    console.log(chalk.cyan(`  npm update -g solo-founder-agents\n`));
+    console.log(chalk.cyan(`  ${npmGlobalInstallCmd("solo-founder-agents@latest")}\n`));
 
     // Auto-update
     const readline = await import("readline");

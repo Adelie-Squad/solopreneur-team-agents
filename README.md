@@ -2,7 +2,7 @@
 
 > A 24/7 AI assistant system for solo founders. Operates product-specific agents using Claude Code.
 
-Running a company alone doesn't mean working alone. Solo Founder Agents gives you a full virtual team — 23 specialized AI agents organized into 4 teams — that operates around the clock via your favorite messenger, scheduled routines, and CLI tools. Just talk to it like you'd talk to a co-founder, and the right specialist picks up.
+Running a company alone doesn't mean working alone. Solo Founder Agents gives you a full virtual team — 25 specialized AI agents organized into 4 teams — that operates around the clock via your favorite messenger, scheduled routines, and CLI tools. Just talk to it like you'd talk to a co-founder, and the right specialist picks up.
 
 **Supports:** Discord | Slack | Telegram — choose one or multiple during setup.
 **Platforms:** Windows | macOS | Linux — cross-platform CLI with CI-tested support.
@@ -32,7 +32,7 @@ This system solves that by giving each domain its own specialist agent, persiste
 
 ## Key Features
 
-### 23 Agents, 4 Teams, 1 Command
+### 25 Agents, 4 Teams, 1 Command
 
 Send a message in your messenger. The system analyzes your intent across 60+ keywords and routes it to the right specialist. No manual selection needed.
 
@@ -81,6 +81,8 @@ Phase 1: Research    → User Researcher + Desk Researcher + Idea Refiner (paral
 Phase 2: Planning    → PMF Planner + Feature Planner
 Phase 3: Design      → UX Designer → UI Designer (sequential)
 Phase 4: Build       → Architect → Frontend + Backend (parallel)
+Phase 5: QA + Mktg   → QA Engineer + GTM Strategist (parallel)
+Phase 6: Launch      → Paid Marketer (after QA Go)
 ```
 
 Agents hand off context to each other via a structured **Handoff Protocol** — summary, artifacts, key decisions, open questions — so nothing gets lost between stages.
@@ -226,7 +228,7 @@ You: Draft landing page copy
 Bot: [product-name (content-writer)] ...
 ```
 
-60+ keywords → 23 agents auto-matched. Falls back to general mode if no keyword match.
+60+ keywords → 25 agents auto-matched. Falls back to general mode if no keyword match.
 
 ### Run Routines Manually
 ```bash
@@ -300,7 +302,7 @@ Each product's AI agents can **only see that product's context**. Other product 
 │   ├── scheduler/          ← Cron-based routine execution + memory auto-save
 │   └── util/               ← Config, paths, logger, platform detection
 ├── assets/                 ← Bundled with npm package, copied on `solo-agents init`
-│   ├── agents/             ← 23 specialized agents (SKILL.md files)
+│   ├── agents/             ← 25 specialized agents (SKILL.md files)
 │   ├── core/               ← Owner profile, principles, writing style
 │   ├── routines/           ← Routine prompts (editable after init)
 │   ├── orchestrator/       ← Project workflow orchestration
@@ -310,14 +312,14 @@ Each product's AI agents can **only see that product's context**. Other product 
 
 ---
 
-## Team-Based Agents (23)
+## Team-Based Agents (25)
 
 | Team | Agents | Role |
 |------|--------|------|
 | **Strategy** | PMF Planner, Feature Planner, Policy Architect, Data Analyst, Business Strategist, Idea Refiner, Scope Estimator | Strategy, planning, analysis |
 | **Growth** | GTM Strategist, Content Writer, Brand Marketer, Paid Marketer | Marketing, branding |
 | **Experience** | User Researcher, Desk Researcher, UX Designer, UI Designer | Research, design |
-| **Engineering** | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin | Development, infrastructure |
+| **Engineering** | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin, QA Engineer, Security Engineer | Development, infrastructure, quality, security |
 
 ---
 
@@ -330,6 +332,20 @@ The CLI runs natively on Windows, macOS, and Linux. Key features:
 - **OS-aware defaults**: Repos path defaults to `~/Documents/solo-agents-repos` on Windows, `~/repos` on Unix
 - **sudo auto-detection**: `solo-agents update` detects when `sudo` is needed on Linux/macOS
 - **CI matrix**: Every push is tested on Ubuntu, macOS, and Windows × Node 18/20/22
+
+## Security
+
+The system includes safety measures for AI-powered autonomous execution:
+
+- **Input validation**: Message length limits and empty input checks on all messenger adapters
+- **Safety preamble**: Claude subprocess receives safety rules blocking access to .env, .ssh, credentials and destructive commands
+- **Output sanitization**: Sensitive patterns (tokens, passwords, API keys) are redacted before memory storage
+- **Security Engineer agent**: Dedicated agent for security review, vulnerability assessment, and secure coding guidance
+- **Init safety guide**: Security checklist and .gitignore verification during setup
+
+See `docs/v1.2-safety-security.md` for the full security framework.
+
+---
 
 ## System Management
 

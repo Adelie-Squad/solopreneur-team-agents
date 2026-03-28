@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { getReposBase } from "../util/paths.js";
+import { normalizeLine } from "../util/platform.js";
 import { loadProducts, type Product } from "../util/config.js";
 import {
   DEFAULT_CHANNELS,
@@ -29,7 +30,11 @@ class DiscordMessageContext implements MessageContext {
     const chunks = text.match(/.{1,1900}/gs) || [text];
     for (let i = 0; i < chunks.length; i++) {
       const prefix = i === 0 ? `**[${this.product.name}${this._agentLabel}]**\n` : "";
-      await this.message.reply(`${prefix}\`\`\`\n${chunks[i]}\n\`\`\``);
+      try {
+        await this.message.reply(`${prefix}\`\`\`\n${chunks[i]}\n\`\`\``);
+      } catch (e) {
+        console.log(`[Discord] Failed to reply: ${e}`);
+      }
     }
   }
 
@@ -87,7 +92,11 @@ export class DiscordAdapter implements MessengerAdapter {
 
       const ctx = new DiscordMessageContext(message, product);
       await message.channel.sendTyping();
-      await onCommand(message.content.trim(), product, ctx);
+      try {
+        await onCommand(message.content.trim(), product, ctx);
+      } catch (e) {
+        console.log(`[Discord] Command handler error: ${e}`);
+      }
     });
 
     await client.login(token);
@@ -124,10 +133,15 @@ export class DiscordAdapter implements MessengerAdapter {
 
     const content = title ? `**${title}**\n\n${text}` : text;
     const chunks = content.match(/.{1,1900}/gs) || [content];
-    for (const chunk of chunks) {
-      await channel.send(chunk);
+    try {
+      for (const chunk of chunks) {
+        await channel.send(chunk);
+      }
+      return true;
+    } catch (e) {
+      console.log(`[Discord] Failed to send to #${channelName}: ${e}`);
+      return false;
     }
-    return true;
   }
 
   async setupChannels(productConfig: Record<string, unknown>): Promise<string[]> {
@@ -187,7 +201,7 @@ export class DiscordAdapter implements MessengerAdapter {
           const configFile = path.join(reposBase, product.slug, "discord", "config.yaml");
           if (!fs.existsSync(configFile)) continue;
 
-          const config = yaml.load(fs.readFileSync(configFile, "utf-8")) as Record<string, unknown>;
+          const config = yaml.load(normalizeLine(fs.readFileSync(configFile, "utf-8"))) as Record<string, unknown>;
           if (config.guild_id !== guild.id) {
             config.guild_id = guild.id;
             const channels = (config.channels || {}) as Record<string, string>;
@@ -212,7 +226,7 @@ export class DiscordAdapter implements MessengerAdapter {
     for (const p of products) {
       const configFile = path.join(reposBase, p.slug, "discord", "config.yaml");
       if (!fs.existsSync(configFile)) continue;
-      const config = yaml.load(fs.readFileSync(configFile, "utf-8")) as Record<string, unknown>;
+      const config = yaml.load(normalizeLine(fs.readFileSync(configFile, "utf-8"))) as Record<string, unknown>;
       if (config.guild_id === guildId) return p;
     }
     return null;

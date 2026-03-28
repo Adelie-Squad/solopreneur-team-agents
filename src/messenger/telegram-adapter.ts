@@ -55,7 +55,11 @@ export class TelegramAdapter implements MessengerAdapter {
       if (!msg.text || !product) return;
 
       const ctx = new TelegramMessageContext(this.bot!, msg.chat.id, product);
-      await onCommand(msg.text.trim(), product, ctx);
+      try {
+        await onCommand(msg.text.trim(), product, ctx);
+      } catch (e) {
+        console.log(`[Telegram] Command handler error: ${e}`);
+      }
     });
 
     console.log("[Telegram Bot] Polling started...");

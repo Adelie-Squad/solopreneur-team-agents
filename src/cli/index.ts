@@ -60,9 +60,10 @@ program
 program
   .command("doctor")
   .description("Check environment and diagnose issues")
-  .action(async () => {
+  .option("--ci", "CI mode: exit with non-zero code on failure, no color")
+  .action(async (opts) => {
     const { doctorCommand } = await import("./doctor.js");
-    await doctorCommand();
+    await doctorCommand(opts.ci);
   });
 
 program

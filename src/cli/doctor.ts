@@ -22,7 +22,7 @@ function warn(label: string, hint?: string): void {
   console.log(` ${chalk.yellow("△")} ${label}${hint ? chalk.dim(` — ${hint}`) : ""}`);
 }
 
-export async function doctorCommand(): Promise<void> {
+export async function doctorCommand(ci?: boolean): Promise<void> {
   console.log(chalk.bold("\nSolo Founder Agents — Doctor\n"));
   console.log(chalk.dim(`Platform: ${platformInfo()}`));
   console.log(chalk.dim(`Shell: ${shellName()}\n`));
@@ -96,5 +96,9 @@ export async function doctorCommand(): Promise<void> {
     console.log(chalk.green.bold("✓ All checks passed. System is ready.\n"));
   } else {
     console.log(chalk.yellow(`⚠ ${issues} issue(s) found. Fix them and run again.\n`));
+  }
+
+  if (ci && issues > 0) {
+    process.exit(1);
   }
 }

@@ -3,6 +3,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { runClaude } from "../bot/claude-runner.js";
 import { loadProducts, loadEnv } from "../util/config.js";
+import { getReposBase } from "../util/paths.js";
 import { ROUTINES, loadRoutinePrompt } from "../scheduler/routines.js";
 import { saveRoutineMemory } from "../scheduler/memory.js";
 import fs from "fs";
@@ -46,7 +47,7 @@ export async function runRoutineCommand(
   }
 
   const env = loadEnv();
-  const reposBase = env.REPOS_BASE_PATH || "./repos";
+  const reposBase = env.REPOS_BASE_PATH || getReposBase();
 
   for (const routine of routines) {
     for (const product of products) {

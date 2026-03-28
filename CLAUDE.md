@@ -36,7 +36,7 @@ src/
   scheduler/                        → Cron-based routine execution + memory
   util/                             → Config, paths, logger
 assets/                             → Bundled assets (copied on `solo-agents init`)
-  agents/{team}/{agent}/SKILL.md    → Agent definitions (23)
+  agents/{team}/{agent}/SKILL.md    → Agent definitions (25)
   agents/_teams/{team}/TEAM_KNOWLEDGE.md → Shared team knowledge
   core/                             → Owner profile, principles, writing style
   routines/                         → Routine prompts (editable)
@@ -59,7 +59,7 @@ Layer 2: Project (projects/{id}/)  → Per-project isolation
 | **Strategy** | PMF Planner, Feature Planner, Policy Architect, Data Analyst, Business Strategist, Idea Refiner, Scope Estimator | Strategy, planning, analysis |
 | **Growth** | GTM Strategist, Content Writer, Brand Marketer, Paid Marketer | Marketing, branding |
 | **Experience** | User Researcher, Desk Researcher, UX Designer, UI Designer | Research, design |
-| **Engineering** | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin | Development, infrastructure |
+| **Engineering** | Creative Frontend, FDE, Architect, Backend Developer, API Developer, Data Collector, Data Engineer, Cloud Admin, QA Engineer, Security Engineer | Development, infrastructure, quality, security |
 
 ## Messenger Support
 
@@ -70,7 +70,7 @@ Adapter pattern in `src/messenger/` — all platforms share the same bot logic a
 ## Agent Routing
 
 Send a message in the command channel and `src/bot/agent-router.ts` analyzes keywords to auto-inject the appropriate agent's SKILL.md.
-- 60+ keywords → 23 agent mappings (`AGENT_ROUTES` dictionary)
+- 60+ keywords → 25 agent mappings (`AGENT_ROUTES` dictionary)
 - Falls back to general mode if no match
 
 ## Automated Routines + Memory Storage
