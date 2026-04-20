@@ -6,11 +6,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/seungw1n/solosquad.git"
+    "url": "git+https://github.com/Adelie-Squad/solosquad.git"
   },
-  "homepage": "https://github.com/seungw1n/solosquad#readme",
+  "homepage": "https://github.com/Adelie-Squad/solosquad#readme",
   "bugs": {
-    "url": "https://github.com/seungw1n/solosquad/issues"
+    "url": "https://github.com/Adelie-Squad/solosquad/issues"
   },
   "bin": {
     "solosquad": "dist/bin/solosquad.js"
