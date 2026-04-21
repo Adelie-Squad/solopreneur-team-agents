@@ -8,7 +8,11 @@ import { npmGlobalInstallCmd } from "../util/platform.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getLocalVersion(): string {
-  const pkgPath = path.resolve(__dirname, "..", "..", "package.json");
+  // Walk up from dist/src/cli/ or src/cli/ to find package.json
+  let pkgPath = path.resolve(__dirname, "..", "..", "package.json");
+  if (!fs.existsSync(pkgPath)) {
+    pkgPath = path.resolve(__dirname, "..", "..", "..", "package.json");
+  }
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
   return pkg.version;
 }
