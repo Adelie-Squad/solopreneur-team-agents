@@ -506,7 +506,7 @@ solosquad init
 -- Step 3: Configuration --
 Your name:                (본인 이름)
 Your role:                (예: developer, designer, founder)
-Messenger platform:       (Discord / Slack / Telegram / multi)
+Messenger platform:       (Discord / Slack / Telegram — 한 워크스페이스당 1개)
 <플랫폼별 토큰 입력>       (4장에서 얻은 값)
 Project storage path:     (Enter → OS별 기본값)
 
@@ -894,7 +894,7 @@ docker compose up -d --build   # Docker 사용 시 이미지 재빌드
 A: Claude Code Max 구독료만 있으면 시작 가능. 클라우드 운영 시 VPS 월 $4~6 추가.
 
 **Q: Discord와 Slack을 동시에 쓸 수 있나요?**
-A: 네. `.env`에서 `MESSENGER=discord,slack`으로 설정.
+A: 한 워크스페이스에서는 불가능합니다. 대신 **워크스페이스를 두 개** 만들면 됩니다 — 예: `~/solopreneur/`(Slack 봇) + `~/elon-24-7/`(Discord 봇). 각 워크스페이스가 독립된 `.env`·토큰·봇 계정을 가지므로 서로 간섭하지 않고 동시 운영됩니다. 이 제약은 v1.2.2부터 적용되며, 이전 v1.1.x의 `MESSENGER=discord,slack` 복수 지정은 더 이상 지원하지 않습니다.
 
 **Q: 시간대가 한국이 아니면?**
 A: `.env`의 `TZ=`를 변경 (예: `TZ=America/Los_Angeles`). Docker도 동일.

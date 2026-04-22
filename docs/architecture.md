@@ -74,7 +74,10 @@ Layer 2: Project (~/repos/{slug}/projects/{id}/)
 
 ---
 
-## 4. 메신저 멀티 플랫폼
+## 4. 메신저 어댑터
+
+### 현재(v1.1.5) — 멀티 플랫폼 지원
+
 `MESSENGER` 환경변수로 설정. 콤마로 동시 운영 가능:
 
 ```
@@ -86,6 +89,10 @@ MESSENGER=discord,slack    # 동시 운영
 어댑터 패턴으로 구현. 모든 플랫폼이 동일한 `CommandHandler` 인터페이스를 공유:
 - **bot 모드**: 명령 채널 메시지 수신 → 에이전트 라우팅 → Claude Code 실행 → 응답
 - **notifier 모드**: 스케줄러가 루틴 결과를 모든 연결 플랫폼에 전송
+
+### 변경 예정(v1.2.2) — 한 워크스페이스 = 한 메신저
+
+v1.2.2부터는 워크스페이스당 **단일 메신저 플랫폼**으로 단순화됩니다. `MESSENGER=discord,slack` 같은 복수 지정은 제거되고, 동시 운영이 필요한 사용자는 **워크스페이스를 여러 개** 두는 방식으로 바뀝니다. 자세한 이유와 마이그레이션은 `docs/v1.2.2-terminology-layout.md` §3.6과 `docs/v1.2.3-migration-process.md` 참조.
 
 ---
 
@@ -294,8 +301,18 @@ solosquad doctor              # 환경 진단 (Node, Docker, Claude, 토큰, 설
 
 향후 계획은 별도 기획 문서에서 관리합니다. 기획은 언제든 변경될 수 있으므로 이 아키텍처 문서에는 포함하지 않습니다.
 
-- `docs/v1.1-cross-platform.md` — 크로스 플랫폼 (구현 완료)
+**구현 완료:**
+- `docs/v1.1-cross-platform.md` — 크로스 플랫폼 (v1.1.x)
+- `docs/v1.1.1-qa-hardening.md` — QA 하드닝
+- `docs/v1.1.2-npm-publish.md` — npm 퍼블리시
 - `docs/v1.2-safety-security.md` — 안전/보안
+- `docs/v1.2.1-messenger-debugging.md` — 메신저 연결 디버깅 (v1.1.3~v1.1.5 hotfix로 출시)
+
+**계획 중:**
+- `docs/v1.2.2-terminology-layout.md` — GitHub-aligned 계층 재편 (workspace / organization / repository / workflow). Breaking change, 마이그레이션 필수.
+- `docs/v1.2.3-migration-process.md` — 범용 마이그레이션 프레임워크. 모든 버전 전환에 재사용.
+
+**장기 로드맵:**
 - `docs/v1.3-autonomous-engine.md` — 자율 실행 엔진
 - `docs/v1.4-skill-freedom.md` — 스킬 자유도
 - `docs/v1.5-knowledge-ontology.md` — 지식 온톨로지

@@ -4,7 +4,7 @@
 
 Running a company alone doesn't mean working alone. SoloSquad gives you a full virtual team — 25 specialized AI agents organized into 4 teams — that operates around the clock via your favorite messenger, scheduled routines, and CLI tools. Just talk to it like you'd talk to a co-founder, and the right specialist picks up.
 
-**Supports:** Discord | Slack | Telegram — choose one or multiple during setup.
+**Supports:** Discord | Slack | Telegram — pick one per workspace. For multi-platform use, create multiple workspaces.
 **Platforms:** Windows | macOS | Linux — cross-platform CLI with CI-tested support.
 
 ---
@@ -44,9 +44,9 @@ You: "Write a launch announcement for Product Hunt"
 → Routes to Content Writer (Growth team)
 ```
 
-### Multi-Platform Messenger Support
+### Messenger Support — One per Workspace
 
-Pick the platform that fits your workflow — or run multiple simultaneously:
+Pick the platform that fits your workflow. A workspace is bound to a single messenger; use separate workspaces if you need more than one platform.
 
 | Platform | Best For | Key Advantage |
 |----------|----------|---------------|
@@ -54,7 +54,7 @@ Pick the platform that fits your workflow — or run multiple simultaneously:
 | **Slack** | Workspace integration | Socket Mode, native workspace feel |
 | **Telegram** | Lightweight / mobile | Simple setup, works anywhere |
 
-Set `MESSENGER=discord`, `MESSENGER=slack`, or `MESSENGER=discord,slack` for multi-platform.
+Set `MESSENGER=discord`, `MESSENGER=slack`, or `MESSENGER=telegram`. For both Slack and Discord, run `solosquad init` in two different workspace directories — each gets its own `.env`, bot tokens, and persona.
 
 ### 3-Layer Context Isolation
 
@@ -388,10 +388,10 @@ vim routines/morning-brief.md
 A: Subscribe to Claude Code Max plan, then run `claude login` in your terminal.
 
 **Q: How do I switch messenger platforms?**
-A: Change `MESSENGER=slack` (or `telegram`, or `discord,slack`) in `.env` and restart the bot.
+A: Change `MESSENGER=slack` (or `discord`, or `telegram`) in `.env` and restart the bot.
 
 **Q: How do I use multiple messengers simultaneously?**
-A: Set `MESSENGER=discord,slack` in `.env`. The bot and scheduler will connect to both platforms.
+A: Create a separate workspace for each platform. Each `solosquad init` yields its own `.env` and bot tokens, so `~/solosquad-slack/` and `~/solosquad-discord/` can run side by side without stepping on each other.
 
 **Q: How do I add a product later?**
 A: Re-run `solosquad init`. Existing settings are preserved; only the new product is added.
