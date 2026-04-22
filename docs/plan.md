@@ -24,11 +24,15 @@
 
 ### 현재 설치 가능 버전: `1.1.5` (npm `latest` 태그)
 
+**다음 배포 예정:** `v1.2.0` — 아래 §2 작업 블록 통합 배포.
+
+> **문서 파일명 vs npm 버전:** `docs/v1.2.2-*.md` / `docs/v1.2.3-*.md`는 **작업 블록 라벨**(설계 단위를 묶는 논리적 이름)이고, 실제 npm 출시 번호는 semver를 따릅니다. 1.1.5 다음 첫 minor 점프는 `v1.2.0`이며, 아래 v1.2.2·v1.2.3 문서 블록의 내용을 `v1.2.0` 한 릴리스로 통합 배포합니다.
+
 ---
 
 ## 2. 진행 중인 계획
 
-### v1.2.2 — GitHub-aligned 계층 구조 재편 (문서 완료, 구현 대기)
+### v1.2.2 문서 블록 — GitHub-aligned 계층 구조 재편 (구현 완료, 배포 대기)
 
 **핵심 아이디어:** Workspace / Organization / Repository / Workflow — GitHub 관례와 일치. `REPOS_BASE_PATH` 제거, 단일 트리 루트.
 
@@ -40,29 +44,29 @@
 - **한 워크스페이스 = 한 메신저 플랫폼 = 한 봇 계정** (v1.1.x의 `MESSENGER=discord,slack` 복수 지정 제거)
 - Cross-repo workflow: `_status.yaml`의 각 stage에 `target_repo` 필드
 
-**상태:** 설계 문서 완성. 구현 대기.
+**상태:** 구현 완료 (feat 브랜치). npm `v1.2.0` 배포 대기.
 **문서:** `docs/v1.2.2-terminology-layout.md`
 
-### v1.2.3 — 마이그레이션 프레임워크 (문서 완료, 구현 대기)
+### v1.2.3 문서 블록 — 마이그레이션 프레임워크 (구현 완료, 배포 대기)
 
 **핵심 아이디어:** 모든 버전 전환에 재사용하는 범용 마이그레이션 시스템. `solosquad migrate` 명령, dry-run 기본, 자동 백업, 다중 버전 체이닝.
 
-**상태:** 설계 문서 완성. v1.2.2와 함께 구현되어야 함 (v1.1.x → v1.2.2 마이그레이션 스크립트가 첫 구체 케이스).
+**상태:** 구현 완료. v1.2.2 문서 블록과 함께 `v1.2.0`으로 통합 배포 예정 (v1.1.x → v1.2.0 마이그레이션 스크립트가 첫 구체 케이스).
 **문서:** `docs/v1.2.3-migration-process.md`
 
-### 실행 순서 (권장)
+### 실제 실행 이력
 
-1. `src/migrations/` 스캐폴딩 구현 (`v1.2.3` Phase 1-2)
-2. `src/util/paths.ts` 재작성 (`.solosquad/` 감지) — `v1.2.2` Phase 1
-3. `solosquad init` 재작성 — `v1.2.2` Phase 2
-4. org/repo loader + `add org`, `add repo`, `sync` — `v1.2.2` Phase 3
-5. bot/scheduler/status/doctor 경로 교체 — `v1.2.2` Phase 4
-6. Cross-repo workflow runner — `v1.2.2` Phase 5
-7. v1.1.x → v1.2.2 마이그레이션 스크립트 + fixture 테스트 — `v1.2.3` Phase 3-4
-8. setup-guide·README·architecture 최종 갱신 — `v1.2.2` Phase 6
-9. `solosquad@1.2.2` 동시 퍼블리시
+1. ✓ `src/migrations/` 스캐폴딩 (types, detect, backup, runner, index, scripts/)
+2. ✓ `src/util/paths.ts` 재작성 (`.solosquad/` 감지, walk-up 탐색)
+3. ✓ `src/util/config.ts` 확장 (workspace.yaml / .org.yaml / repo.yaml 로더)
+4. ✓ `src/cli/init.ts` 재작성 (단일 메신저, organization 온보딩)
+5. ✓ `src/cli/migrate.ts` + CLI 등록 (--dry-run / --apply / --rollback / --list-backups)
+6. ✓ `src/cli/doctor.ts` / `update.ts` 재배선 (레이아웃 감지 + 마이그레이션 유도)
+7. ✓ `bin/solosquad.ts` 재작성 (.solosquad/.env 우선 로드)
+8. ✓ `v1.1.x-to-1.2.0.ts` 스크립트 + 스모크 테스트
+9. ⏳ `solosquad@1.2.0` npm 퍼블리시 (OTP 필요)
 
-**예상 기간:** 2~3주 실 작업 + QA.
+**미구현 (차기):** `add org` / `add repo` / `sync` 명령, Cross-repo workflow 런타임 전환, fixture 기반 자동 회귀 테스트.
 
 ---
 
@@ -82,7 +86,8 @@
 - **2026-04-22** — 한 워크스페이스 = 한 메신저 플랫폼. 복잡한 멀티 어댑터 동시 운영을 단순화. 복수 플랫폼 사용자는 워크스페이스를 여러 개 만들어 분리.
 - **2026-04-22** — Organization 자동 clone 기능 제거 (v1.3+로 연기 검토). 사용자가 직접 `git clone`.
 - **2026-04-22** — Workspace 루트 이름은 사용자 지정(`.solosquad/` 폴더 감지 기반). 기본 이름 `solosquad`, 페르소나 분리용 다중 루트 허용.
-- **2026-04-22** — Windows 기본 경로 `~/Documents/solosquad-repos` 폐기. v1.2.2 단일 트리 루트로 통일.
+- **2026-04-22** — Windows 기본 경로 `~/Documents/solosquad-repos` 폐기. v1.2.0 단일 트리 루트로 통일.
+- **2026-04-22** — 문서 파일명(v1.2.2, v1.2.3 등)은 작업 블록 라벨로 유지하고, npm 버전은 semver에 맞춰 1.1.5 다음 점프를 `v1.2.0`으로 정함. 문서 라벨 ↔ npm 버전은 1:1 매칭 아님.
 - **2026-04-21** — 버전 표기는 `vN.N.N` 3자리 고정. 2자리(`v1.2`)는 문서 내 참조 약어로만, 공식 릴리스는 항상 3자리.
 - **2026-04-21** — v1.1.3~v1.1.5는 작은 hotfix 연쇄로 빠르게 출시 (dotenv·update·Windows claude.cmd).
 
