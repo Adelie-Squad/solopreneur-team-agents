@@ -25,7 +25,7 @@ export function detectWorkspaceVersion(workspace: string): string | null {
         /* fall through */
       }
     }
-    return "1.2.2";
+    return "1.2.0";
   }
 
   // v1.1.x: config folders at root, no .solosquad/

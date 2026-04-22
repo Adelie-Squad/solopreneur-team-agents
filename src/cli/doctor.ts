@@ -81,7 +81,7 @@ export async function doctorCommand(ci?: boolean, messengerCheck?: boolean): Pro
   } else if (legacyMarkers) {
     warn(
       `Legacy v1.1.x layout at ${workspace}`,
-      "Run: solosquad migrate --dry-run  (preview),  --apply  (upgrade to v1.2.2)"
+      "Run: solosquad migrate --dry-run  (preview),  --apply  (upgrade to v1.2.0)"
     );
     issues++;
   } else {
@@ -115,7 +115,7 @@ export async function doctorCommand(ci?: boolean, messengerCheck?: boolean): Pro
   if (rawMessenger.includes(",")) {
     warn(
       `MESSENGER contains multiple values: "${rawMessenger}"`,
-      "v1.2.2 supports only one messenger per workspace. Using first value."
+      "v1.2.0+ supports only one messenger per workspace. Using first value."
     );
   }
 

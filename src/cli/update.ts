@@ -67,7 +67,8 @@ export async function updateCommand(channel: string): Promise<void> {
     const workspaceVersion = detectWorkspaceVersion(getWorkspaceRoot());
     if (workspaceVersion && workspaceVersion !== latest && !isNewer(workspaceVersion, latest)) {
       // Detect a known structural jump (1.1.x → 1.2.x)
-      if (workspaceVersion.startsWith("1.1") && latest.startsWith("1.2")) {
+      // Structural jump markers: 1.1.x → 1.2.0+ reshapes the layout.
+      if (workspaceVersion.startsWith("1.1.") && latest.startsWith("1.2.")) {
         console.log(
           chalk.yellow(
             "\n  ⚠ This update includes breaking workspace-layout changes."

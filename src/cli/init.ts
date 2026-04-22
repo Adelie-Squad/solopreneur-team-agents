@@ -17,7 +17,7 @@ import {
 } from "../util/config.js";
 import { commandExists } from "../util/platform.js";
 
-const SOLOSQUAD_VERSION = "1.2.2";
+const SOLOSQUAD_VERSION = "1.2.0";
 
 const ORG_EXAMPLES = `
   Examples (Elon Musk's portfolio, for illustration):

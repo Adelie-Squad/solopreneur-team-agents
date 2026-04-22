@@ -1,5 +1,5 @@
 import type { Migration } from "./types.js";
-import { migration as v11xToV122 } from "./scripts/1.1.x-to-1.2.2.js";
+import { migration as v11xToV120 } from "./scripts/1.1.x-to-1.2.0.js";
 import { versionMatches } from "./detect.js";
 
 /**
@@ -8,7 +8,7 @@ import { versionMatches } from "./detect.js";
  * target version is reached.
  */
 export const MIGRATIONS: Migration[] = [
-  v11xToV122,
+  v11xToV120,
 ];
 
 /**
