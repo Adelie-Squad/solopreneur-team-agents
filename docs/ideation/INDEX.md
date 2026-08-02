@@ -23,6 +23,7 @@
 | [260625-ai-planning-insights.md](260625-ai-planning-insights.md) | |
 | [260712-long-horizon-codex-goals-vs-fable5.md](260712-long-horizon-codex-goals-vs-fable5.md) | 장기작업 가이드 대조: Codex Goals(완료계약·6필드) vs Fable 5(프롬프팅). 공통점 8·차이 7·적용 7 |
 | [260712-ralphthon-icml-review-and-passing-paper.md](260712-ralphthon-icml-review-and-passing-paper.md) | Ralphthon ICML: 리뷰 rubric(4축+overall)·auto-research·"통과하는 paper" 역설계. 형식규격(2단10pt·4p·Impact Statement 필수)·double-blind·타임라인. ref: icml2026/ |
+| [260803-solosquad-architecture-redesign.md](260803-solosquad-architecture-redesign.md) | **설계 개선 제안 (4축·18안건 + 항목별 1차 개선안).** 언어/배포·토폴로지·멀티LLM·하네스. 핵심: Track 0 HARD GATE 를 "언어 ADR"→"하네스 인터페이스 ADR" 로 교체 요구. v1.5.0 PRD 상위 종합 |
 | [AI_Agent_Harness_Report.md](AI_Agent_Harness_Report.md) | |
 | [curl-publish.md](curl-publish.md) | |
 | [multi-agent-directory.md](multi-agent-directory.md) | |

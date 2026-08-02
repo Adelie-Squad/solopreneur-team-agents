@@ -1,0 +1,861 @@
+# SoloSquad 설계 개선 제안 — 언어·토폴로지·멀티LLM·하네스 4축 재설계
+
+> **유형:** ideation (설계 제안서 — 발산이 아니라 **권고·분할선을 명시**한다)
+> **작성:** 2026-08-03
+> **청자:** SoloSquad 개발자(본인)
+> **성격:** `docs/prd/v1.5.0_orchestration-and-harness-platform.md` 의 **Track 0 게이트 재정의를 요구**하는 상위 종합. PRD 를 대체하지 않고, PRD 가 열어둔 OQ #1·#2·#5 에 근거 기반 답을 제시한다.
+> **기준 버전:** v1.4.3 (npm `latest`) · v1.5.0 코드 착수 0%
+>
+> **종합 대상 12건**
+> `v1.5.0 PRD(rev4)` · [[AI_Agent_Harness_Report]] · [[260514-harness-pattern-adoption]] ·
+> [[260514-agent-view-teams-application]] · [[multi-agent-directory]](Hermes V2) ·
+> [[260605-ochestrator-session]] · [[260712-long-horizon-codex-goals-vs-fable5]] ·
+> [[260621-multi-repo-execution]] · `v1.x-llm-backend-abstraction` · `v1.x-knowledge-ontology` ·
+> `v1.1-multi-agent-team-architecture` · [[260721-solosquad-final-review]] ·
+> [[260724_기술설계_솔루션적절성_v2]] · [[curl-publish]]
+>
+> **코드 근거는 2026-08-03 실물 grep 으로 재검증**했다. 인용 file:line 은 그 시점 기준.
+
+---
+
+## 0. 요약
+
+### 0.1 한 문장
+
+> **v1.5.0 이 "언어 ADR" 이라는 게이트에 잠겨 있는데, 실제로 가장 값진 작업은 전부 언어 중립이며, 언어 논쟁은 이미 양쪽 근거가 0 으로 판명됐다. 게이트를 "하네스 인터페이스 ADR" 로 교체하면 v1.5.0 은 즉시 착수 가능해진다.**
+
+### 0.2 공통 진단 — "설계는 다 있는데 런타임에 안 붙어 있다"
+
+4개 축을 각각 파보면 전부 같은 지점에서 만난다.
+
+| 설계된 것 | 런타임 상태 | 실물 근거 (2026-08-03 재검증) |
+|---|---|---|
+| 8단계 JIT 컨텍스트 조립기 | 🔴 **정의부 외 참조 0건** — 테스트에서조차 호출 안 됨 | `src/bot/chief-runner.ts:1061` `preflightSpawn` 이 유일 히트 |
+| goal 측정 (keep/discard 판정) | 🔴 유사난수 placeholder | `src/cli/goal.ts:362,497` 이 `makePlaceholderMeasurer()`(`:629`) 를 wiring |
+| goal 의 외부 repo 접근 | 🔴 `--add-dir` 없음 | `src/engine/goal-runner.ts:164` = `cwd: orgCwd` 뿐 |
+| Output/Path 가드 · stop-hook | 🔴 goal-runner 미연결 | [[260724_기술설계_솔루션적절성_v2]] PART A §4 |
+| 팀 KNOWLEDGE / OKR 레이어 | 🟡 조립기 경유라 subagent 도달 불확실 | 위 조립기 미연결의 파생 |
+
+> ⚠️ 원 보고서는 조립기를 *"런타임 호출 0건"* 이라 적었는데, 재검증 결과는 더 나쁘다. **`src` + `test` 전체에서 정의부 1줄 외 참조가 없다.** 회귀 테스트조차 없으므로 이 모듈은 "미연결"이 아니라 **사실상 미배선(dead)** 이다.
+
+### 0.3 근본 원인 — 처음으로 특정된다
+
+조립기가 안 붙은 이유를 코드 주석이 자인한다: **"host 가 Task 를 가로챌 수 없다."**
+
+즉 **Claude Code 네이티브 `Task` 도구에 spawn 을 위임하는 한, 우리에겐 컨텍스트를 주입할 지점 자체가 없다.** 가드·stop-hook·핸드오프 슬라이서가 전부 같은 이유로 죽어 있다. 이건 배선 실수가 아니라 **아키텍처의 구조적 귀결**이다.
+
+```
+현재:  Chief 세션 ──(Claude Code Task 도구)──▶ specialist
+                          ▲
+                    우리가 개입할 수 없는 구간
+                    → 조립기·가드·훅이 전부 여기서 증발
+
+제안:  Chief 세션 ──(하네스 spawn())──▶ specialist
+                          ▲
+                    우리 소유 구간
+                    → 조립기·가드·훅이 붙을 자리가 생김
+```
+
+**함의 (이 문서의 핵심 주장):**
+`spawn` 소유권을 되찾는 일 = **하네스 인터페이스**(§C1) = 멀티 백엔드의 전제. 즉 **"미연결 결손 해소"와 "멀티 LLM"은 별개 트랙이 아니라 같은 문제의 두 얼굴이다.** PRD 가 이 둘을 Track A 와 Track 0 으로 갈라놓은 것이 착수를 막고 있다.
+
+동시에 이 구간에는 **벤더 제약도 실재**한다 — `src/bot/claude-process.ts:15-17` 은 *"claude 2.1.x 가 stream-json 입력 하에서 `--add-dir` 를 무시하므로 `--input-format stream-json` 을 버렸다"* 고 기록한다. 하네스 인터페이스는 이런 **벤더 회귀를 흡수하는 층**이기도 하다(v1.3.10·v1.3.11 두 번의 hotfix 가 그 부재 비용이었다).
+
+### 0.4 안건 18건 한눈에
+
+| # | 안건 | 등급 | 1차 개선안 요지 |
+|---|---|:---:|---|
+| **A1** | 오케스트레이션 언어 TS/Py/폴리글랏 | 🔴 | **TS 유지 + 최소 폴리글랏**(분석·시뮬만 Py subprocess). 언어를 게이트에서 강등 |
+| **A2** | npm vs curl 배포 | 🟡 | **둘 다** — npm 주채널 유지 + curl/irm 부트스트랩 래퍼 신설 |
+| **A3** | 폐기 논거 재유입 차단 | 🟡 | `docs/policy/` 에 ADR 로 박제, 대외 문서 정합 |
+| **B1** | Chief 존재 vs PM 흡수 | 🔴 | **Chief 를 라우터로 축소**(ⓓ) + fast-path. 2단 기획은 A/B 로만 정당화 |
+| **B2** | 공통 팀 ↔ repo 특화 (내부 마켓플레이스) | 🔴 | overlay + **승격 파이프라인**. Track E 를 후순위→엔진으로 재평가 |
+| **B3** | org/repo docs 재분류 + PRD 버전 | 🔴 | **org PRD = 날짜·슬러그 id(semver 아님) / repo = semver**, 참조로 연결 |
+| **B4** | 실행 컨텍스트 4갈래 통합 | 🔴 | `ExecutionContext` 단일 스키마. Track A·B 병합 |
+| **B5** | 팀 taxonomy 문서-구현 불일치 | 🟡 | 코드를 정본으로 문서 일괄 정정 + CI 게이트 |
+| **B6** | 터미널 1급 제어 표면 | 🟡 | `solosquad chat` — 메신저 무관 라우터 진입점 |
+| **C1** | 하네스 인터페이스 | 🔴 | 10 차단점을 그대로 5-메서드 계약으로 승격. **내부 도입·표면 비노출** |
+| **C2** | Codex = 패턴 소스 | 🔴 | 스파이크 목적 전환: "Py 이득?"→"Codex 세션모델을 표현 가능한가?" |
+| **C3** | 구독/API/로컬 LLM + 라우팅 | 🔴 | **2계층 어댑터**(Tier-1 CLI / Tier-2 raw). 로컬은 저난도·고빈도부터 |
+| **D1** | memory·router·context·handoff | 🔴 | context 를 파일 우회(ⓑ)로 **즉시** 살리고, spawn 소유(ⓐ)는 C1 뒤 |
+| **D2** | 멀티 세션 vs 스레드 | 🔴 | **스레드=세션 + idle 요약 종료 + rehydrate** |
+| **D3** | 핸드오버 · worktree/샌드박스/VM/컨덕터 | 🔴 | 85% 자동 교대 + **worktree 격리**(제안 C 폐기 대체) + 컨덕터 명시화 |
+| **D4** | 가드·훅 6건 수렴 | 🔴 | Track C 단일 명세. `blocked-condition` 필수화 |
+| **D5** | 학습형 메모리 + GC (S-3b) | 🟡 | **OQ #5 = "아니다"** — archive-rotate 와 다른 층. `LEARNINGS` 파이프라인 |
+| **D6** | 도구·시크릿·MCP (Track D) | 🟡 | 유일한 순수 신규 설계 영역. C3 시크릿과 통합 |
+
+---
+
+# A. 언어 · 배포
+
+## A1. 오케스트레이션 언어 — TS vs Python vs 폴리글랏 🔴
+
+### 현황
+
+rev4 §0.1 실측 (전환 비용의 분모):
+
+| 항목 | 실측 |
+|---|---:|
+| TS 코드 | 72,168 LOC / 402 파일 |
+| 테스트 | 164 파일 / ~1,007 케이스 |
+| `src/migrations/scripts/` | **43 스크립트 / 7,839 LOC** — 배포된 사용자 상태와의 **계약**, 재작성 불가 |
+| npm 실배포 | 34 버전, `latest = 1.4.3` |
+
+모듈별 무게중심: `bot/` 10,706 · `cli/` 10,453 · `migrations/` 7,839 · `util/` 4,582 · `messenger/` 3,624 · `engine/` 3,578.
+→ **메신저 I/O · 프로세스 배선 · 상태 마이그레이션** 이 무게중심이며, 이는 전부 **언어 중립 영역**이다. Python 우위 영역이 아니다.
+
+### 논점 — 양쪽 근거가 모두 0 이다
+
+rev4 §0.2 는 *"SoloSquad 는 Claude Agent SDK 를 쓰지 않는다(`package.json` 에 `@anthropic-ai/*` 0건). `src/bot/claude-process.ts` 가 `claude --print` 서브프로세스를 spawn 하고, 훅은 이미 `.claude/settings.json` shell 훅이다"* 를 근거로 **"훅 shell 우회는 Py 의 대가가 아니다(=0)"** 를 증명했다.
+
+**같은 사실의 뒷면이 아직 문서화되지 않았다:**
+
+> SDK 를 안 쓰므로 **TS 의 유일한 우위(네이티브 세션 훅)도 실현되지 않고 있다.**
+
+[[260724_기술설계_솔루션적절성_v2]] §Q8 이 정확히 이 지적을 한다. 따라서:
+
+| | Py 의 대가 | TS 의 우위 |
+|---|---|---|
+| 세션 훅 축 | **0** (rev4 증명) | **0** (Q8 지적) |
+
+→ **세션 훅 축은 결정 기준으로 성립하지 않는다.** 남는 유효 기준은 rev4 가 명시한 3개 중 ⑴자산 보존 ⑶1인 유지 상한 두 개인데 **둘 다 일방적으로 TS 유지**를 가리키고, ⑵생태계 접근만이 Py 쪽 논거로 남는다.
+
+그런데 ⑵의 실수요를 코드에서 찾으면 **정확히 한 곳**이다 — v1.9.0 VMS 시뮬레이션·분석. 그리고 그건 rev4 §0.2 가 *"핵심 루프가 아니라 v1.9.0 의 보조 기능이며 현 마일스톤에서 4단계 뒤"* 라고 이미 판정했다.
+
+### ★ 1차 개선안 — ⓓ 최소 폴리글랏 + 언어의 게이트 강등
+
+1. **TS 를 오케스트레이션·하네스·봇·CLI·migrations 의 기본값으로 확정한다.** 근거는 "TS 가 낫다"가 아니라 **"언어 축이 중립이므로 전환 비용이 유일한 변별력"** 이다. 이 프레이밍을 ADR 에 그대로 쓴다.
+2. **Py 는 단 하나의 경계로 제한한다** — 분석·시뮬레이션 코어(v1.9.0 VMS). 호출 방식은 **subprocess + JSON stdio**, 상시 서비스 아님. 이 경계는 `src/analyze/` 옆에 `py/` 로 두고 **`package.json` 의 optional 의존으로 격리**하여, Py 미설치 사용자도 나머지 기능이 전부 동작하게 한다.
+3. **언어 결정을 Track 0 의 HARD GATE 에서 제거하고 §C1 하네스 인터페이스로 교체한다.** 인터페이스가 언어 중립 계약이므로, 이후 어댑터 하나를 Py 로 쓸지는 **어댑터 단위 하위 결정**이 된다 (§T1).
+4. **rev4 §0.4 스파이크는 유지하되 목적을 바꾼다** — "Py 실이득 측정"이 아니라 "Codex 세션 모델을 인터페이스가 표현 가능한가" (§C2).
+5. **언어 상한 2개 유지** (rev4 §0.4-5 채택). Rust 등 추가 금지.
+
+### 리스크 · 미결
+
+- Py 경계를 optional 로 두면 **VMS 유료 제품이 "설치 안 된 사용자"** 를 가질 수 있다 → v1.9.0 진입 시 번들 전략 재검토 필요.
+- "생태계 접근" 논거가 v1.9.0 시점에 다시 커질 수 있다. 그때는 **경계가 이미 존재**하므로 확장이 재작성보다 싸다 — 이 개선안의 실질 이점.
+
+---
+
+## A2. npm 배포 vs curl 배포 — 상호배타가 아니다 🟡
+
+### 현황 — 자기 리포가 이미 답을 갖고 있다
+
+[[curl-publish]] 가 두 사례를 대조한다:
+
+| | Hermes Agent | OpenClaw |
+|---|---|---|
+| 스택 | Python 위주 복합 환경 | 100% Node.js |
+| 방식 | `curl \| bash` **단독** (npm 단독 설치 불가) | **npm + 1-liner 병행** |
+| 1-liner 역할 | OS 레벨 환경 세팅 자동화 | *"Node 가 있는지 검사하고 없으면 Node 부터 설치한 뒤 백그라운드에서 `npm install` 을 대신 실행"* |
+
+> **핵심 정정: curl 은 npm 의 대체재가 아니라 npm 의 부트스트랩 래퍼다.**
+
+rev4 §0.3 이 기각한 것은 **"npm→pipx 주채널 교체"** 이지 curl 원클릭이 아니다. PRD 자신도 *"`curl/irm` 원클릭은 언어와 무관하게 지금도 가능"* 이라 적었다. 즉 이 안건은 **이미 합의되어 있는데 실행만 안 된 상태**다.
+
+SoloSquad 는 스택 구성상 **OpenClaw 와 동형**이다(Node 기반 + 비개발자 타깃). Hermes 형이 아니다.
+
+### 논점
+
+| 채널 | 대상 | 전제조건 | 상태 |
+|---|---|---|---|
+| `npm i -g solosquad` | 개발자 | Node | ✅ 현행 (34버전) |
+| `curl -fsSL … \| sh` / `irm … \| iex` | 비개발자 | **없음** | ❌ 미구현 |
+| pipx | — | Python + pipx | ❌ 기각 (rev4 §0.3) |
+
+### ★ 1차 개선안 — 2채널 병행 + 기존 자산 재사용
+
+1. **npm 을 주채널로 확정 유지.** `package.json` · `prepublishOnly` · `docs-check` 게이트 · migrations 체인 전부 불변.
+2. **`scripts/install.sh` + `scripts/install.ps1` 신설.** 동작:
+   ```
+   ① Node 존재·버전 확인 → 없거나 낮으면 설치 (macOS: 공식 tarball, Linux: nvm, Windows: winget/공식 msi)
+   ② npm i -g solosquad
+   ③ solosquad init 자동 실행 (--yes 아닌 대화형)
+   ```
+   즉 **스크립트는 얇은 부트스트랩이고 설치 자체는 여전히 npm** 이다. 유지비가 거의 붙지 않는 이유.
+3. **`solosquad update` 경로와의 공존 규칙 명시** — 이미 OpenClaw 식 self-update 가 있으므로, install 스크립트는 **최초 설치 전용**이고 이후 갱신은 `update` 가 소유한다. 스크립트가 재실행돼도 idempotent 해야 한다.
+4. **Docker 를 3번째 채널로 명문화** — `assets/docker/` 가 이미 번들되어 있고 v1.6.0 이 클라우드를 다룬다. 설치 3경로(npm / curl / docker)를 README 상단에 한 표로.
+5. **A1-ⓓ 와의 연동** — Py 경계가 optional 이므로 install 스크립트는 **Python 을 다루지 않는다.** 이것이 rev4 가 pipx 를 기각한 이유(전제조건 증가)를 그대로 존중하는 방식.
+
+### 리스크 · 미결
+
+- `curl | sh` 는 보안 관행상 비판이 있다 → 스크립트 URL 을 고정 도메인 + **버전 고정 옵션**(`SOLOSQUAD_VERSION=`) 제공, 스크립트 원문을 리포에 노출.
+- Windows `irm | iex` 는 실행 정책(ExecutionPolicy) 이슈가 있음 → v1.3.11 Windows hotfix 경험을 참조해 초기부터 실기 검증 필요.
+
+---
+
+## A3. 폐기 논거 재유입 차단 🟡
+
+### 현황
+
+rev4 §0.2 가 실측으로 폐기한 2건이 **폐기된 지 이틀 뒤 작성된 대외 평가 리포트에 다시 등장**했다.
+
+| 폐기 논거 | 폐기 근거 | 재유입 위치 |
+|---|---|---|
+| "세션 훅이 TS 를 강제" | SDK 미사용 (`@anthropic-ai/*` 0건) | [[260724_기술설계_솔루션적절성_v2]] §Q8 인용 |
+| "시뮬 밀착이 본질 → Py" | 자기 연구가 raw 시뮬 무효 판정 | 동 리포트 §0 총평 ("Python 이 맞다고 자평") |
+
+그 결과 대외 리포트가 **"아키텍처 결정의 자기정합성 C+ — TS 선택 근거 자체 부정"** 이라는 등급을 매겼다. 내부적으로는 이미 기각된 문서를 근거로.
+
+### ★ 1차 개선안
+
+1. **`docs/policy/adr-001-orchestration-language.md` 신설** — rev4 §0.1~§0.4 + 본 문서 §A1 을 정식 ADR 로 박제. ideation 이 아니라 policy 층에 두어 **권위를 명시**한다(`docs/policy/schema-stability.md` 와 같은 등급).
+2. **[[260721-solosquad-final-review]] 헤더에 처분 배너 추가** — *"이 문서는 확정본이 아니다. rev4/ADR-001 이 상위 권위이며 §2·§4 의 주장은 기각됐다."* 문서를 지우지 않고 **판정만 얹는다**(git 히스토리·논의 맥락 보존).
+3. **평가 리포트 v3 시 Q8 답변 교체** — "내부 리뷰가 Py 가 맞다고 자평" → **"내부 리뷰의 논거 2건이 실측으로 기각됐고, 언어 축은 중립으로 판명"**.
+4. **재론 금지 조항을 ADR 에 명시** — 무효 기준 3개(세션훅 언어 강제 · 시뮬/분석 밀착 · 웹 대시보드 언어 통일)를 이름으로 열거.
+
+---
+
+# B. 토폴로지
+
+## B1. Chief 존재 vs PM 이 역할 흡수 🔴
+
+### 현황
+
+| | Chief | PM |
+|---|---|---|
+| 팀 / 대면 | core / **유일 user-facing** | product / 대화 안 함 |
+| 역할 | 소통·TRIAGE·크로스팀 종합·회고/자가학습 | 문제정의·PMF/가설·PRD·WBS |
+| 엄격도 | `hard_gate: false`, `min_approaches: 1` | `hard_gate: true`, `min_approaches: 2` |
+| 커스터마이즈 | org 단위 도메인 전문가화 | 워크스페이스 번들 고정 |
+
+**문제:** 사용자 → Chief → PM → specialist = **최대 3단 spawn, 각 단계가 별도 컨텍스트 윈도우.** 이 손실을 메워야 할 조립기·핸드오프 슬라이서가 **§0.2 대로 dead** 라, "맥락 손실 없음"을 보장하는 장치가 실재하지 않는다. 추가로 `engineer.used_by = [chief, pm]` 이라 **동일 작업의 이중 위임 DAG** 가 성립한다.
+
+### 논점 — Chief 고유값 4개를 하나씩 검증하면 논거가 약해진다
+
+| 주장된 고유값 | 검증 |
+|---|---|
+| 유일 대면 | PM 이 대면해도 성립. **설계 선택일 뿐 고유값 아님** |
+| 크로스팀 종합 | "PM 은 product 밖을 못 본다"도 설계 선택. 제약을 풀면 소멸 |
+| 회고·자가학습 | 에이전트 소속과 무관. cron 이 소유 가능 |
+| org 커스터마이즈 | 🔴 **3-tier 로 아무 에이전트나 가능** (`src/bot/agent-router.ts` 3-tier: org local > user global > bundled). Chief 전유가 아니다 |
+
+남는 실질 차이는 **엄격도(hard_gate·min_approaches) 하나뿐**이고, 그건 에이전트를 나누지 않고 **stage 속성으로도 표현 가능**하다.
+
+### ★ 1차 개선안 — ⓓ Chief 를 라우터로 축소 + fast-path
+
+전면 통폐합(ⓑ/ⓒ)은 SKILL.md·라우팅·문서·마이그레이션을 동시에 흔들어 비용이 크다. **책임을 옮기되 에이전트는 남기는** 중간안을 권고한다.
+
+1. **Chief 의 기획 판단 권한을 0 으로 만든다.** Chief 책임을 ①대화 표면 ②TRIAGE(chat/workflow/cron/goal 분류) ③종합·보고 ④회고 로 한정하고, **"무엇을 만들지"의 판단은 전부 PM/main 으로 내린다.** Chief 는 *조율자*가 아니라 *교환기(switch)* 가 된다.
+2. **fast-path 를 정식 경로로 승격.** Chief 의 DECOMPOSE 가 이미 "PM 호출 / 다른 main 직접 / single skill" 분기를 갖고 있으므로(현행), **단순 product 작업은 Chief→specialist 직결**을 기본값으로 하고 PM 경유를 *예외*로 뒤집는다. PM 은 "깊은 기획이 필요할 때 부르는 rigor 에이전트"가 된다.
+3. **이중 위임 DAG 를 정리한다** — `used_by` 를 단일화하여 engineer 계열은 **PM 경유만** 허용하거나(권장), Chief 직결만 허용. 둘 다 열어두지 않는다.
+4. **엄격도를 에이전트 속성에서 stage 속성으로 이동.** `hard_gate`/`min_approaches` 를 workflow stage 에 선언하면, "PM 만 엄격하다"가 아니라 "이 stage 가 엄격하다"가 되어 Chief/PM 분리의 마지막 근거도 데이터로 흡수된다.
+5. **A/B 실측을 §B4 위에 얹는다** — 토폴로지가 데이터가 되면(B4) `Chief 직결` vs `Chief→PM` 을 같은 과제로 돌려 산출 품질을 비교할 수 있다. **2단 오케스트레이션은 이 실측으로만 정당화한다.**
+
+### 리스크 · 미결
+
+- Chief 를 교환기로 축소하면 **"이사회 의장" 메타포**([[260514-harness-pattern-adoption]] 패턴 4)와 톤이 충돌한다 → 충돌 표면화·종합 책임은 Chief 에 남기므로 메타포는 유지 가능. 다만 SKILL.md 톤 재작성 필요.
+- Educational Nudge(패턴 1)를 Chief 가 할지 PM 이 할지 재배치 필요.
+
+---
+
+## B2. 공통 에이전트 팀 ↔ repo/프로젝트 특화 — 내부 마켓플레이스 🔴
+
+### 현황
+
+**원 의도:** 모든 프로젝트에서 얻는 개선·인사이트를 **하나의 에이전트 팀으로 수렴**시켜 자산을 복리로 키운다. 내부 마켓플레이스처럼.
+
+**현실:**
+
+| 층 | 특화 가능? | 근거 |
+|---|---|---|
+| org | ✅ 3-tier 오버라이드 — 단 **저문서화**, 실사용률 미지 | `src/bot/agent-router.ts` 3-tier |
+| repo | 🔴 **없음** — `repo.yaml` 은 role·language 태그뿐 | [[260724_기술설계_솔루션적절성_v2]] §Q5 |
+| skill | 🔴 3-tier 미적용 — 워크스페이스 번들 고정 | 동 §Q5 |
+
+### 논점 — 진짜 안건은 "수렴 vs 특화"의 긴장
+
+특화를 **fork** 로 하면 수렴이 깨지고(각 repo 가 자기 에이전트를 갖고 갈라짐), 특화를 **금지**하면 이질 스택(Rust 서비스 + Next.js 앱)에서 열위가 된다.
+
+**마켓플레이스 프레이밍이 이 긴장을 푸는 열쇠다.** 특화를 *fork* 가 아니라 **overlay + 승격(promotion)** 으로 설계하면, 단방향 오버라이드가 아니라 **양방향 파이프라인**이 된다.
+
+```
+repo overlay ──(사용·계측)──▶ 승격 게이트 ──합격──▶ 공통 팀 back-merge
+                                   │
+                                   └──불합격──▶ repo 에 머무름 (특화로 유효)
+```
+
+**필요한 3요소 중 2개는 이미 코드에 있다:**
+
+| 요소 | 상태 |
+|---|---|
+| ① 3-tier 를 skill·repo 층까지 확장 | ❌ 신규 |
+| ② 승격 판정 산술 | ✅ **v1.3.6 `src/analyze/` 의 eval 채점(trigger-rate·A/B·train/val split) + refine 게이트(held-out 채택·edit 예산·rejected buffer)가 이미 그 코어** |
+| ③ overlay/reconcile 기계 | ✅ **Track E(M1 overlay tier, M2 seed manifest + `update --reconcile`)가 정확히 이것** |
+
+> **재평가 요구:** PRD 는 Track E 를 *"격변과 독립·병행 가능 → 후순위"* 로 내렸다. 그러나 **이 안건의 엔진이 Track E 다.** 후순위 판정을 철회하고 B2 의 구현 수단으로 승격해야 한다.
+
+### ★ 1차 개선안 — overlay + 승격 파이프라인
+
+1. **3-tier 를 4-tier 로 확장하고 대상을 skill 까지 넓힌다.**
+   ```
+   4. <workspace>/.solosquad/{agents,skills}/   (bundled)
+   3. ~/.solosquad/{agents,skills}/             (user global)
+   2. <org>/.{agents,skills}/                   (org local)
+   1. <repo>/.solosquad/{agents,skills}/        (repo local — 신규, 최우선)
+   ```
+   repo tier 는 **repo 안에 산다**(org 밖 절대경로). 이는 `.claude/skills/` 가 이미 repo 에 있는 관행([[260621-multi-repo-execution]])과 정합하며, repo 를 딴 사람에게 넘겨도 특화가 따라간다.
+2. **overlay 에 출처(provenance) 를 강제한다.** frontmatter 에 `derived_from: <bundled-name>@<version>` + `origin_repo: <slug>`. 이게 없으면 승격 대상이 되지 못한다.
+3. **승격 게이트를 `solosquad promote` CLI 로 노출.** 판정은 기존 eval/refine 코어 재사용 — held-out 채택 + edit 예산 + trigger-rate 개선. **판단은 세션의 Claude, 산술만 코드** 라는 v1.3.6 원칙 유지.
+4. **강등(demotion)도 설계한다.** 공통 팀으로 올라간 뒤 특정 repo 에서 성능이 떨어지면 `rejected buffer` 로 되돌린다. 마켓플레이스는 단방향이면 오염된다.
+5. **발견성을 온보딩에 심는다** — §Q7 이 지적한 대로 org 오버라이드의 최대 리스크는 *"사용자가 안 쓴다"* 이다. `solosquad init` 에 "이 org 의 도메인은?" 1문항을 넣어 Chief 커스터마이즈를 **유도**한다.
+
+### 리스크 · 미결
+
+- 4-tier 스캔은 repo 수에 비례해 부팅 시 I/O 가 는다 → repo tier 는 **`target_repo` 가 해소된 뒤 lazy 스캔**.
+- 승격 게이트가 느슨하면 공통 팀이 특정 repo 편향으로 오염된다 → 최소 **2개 이상 repo 에서 검증된 것만** 승격 후보.
+
+---
+
+## B3. org docs vs repo docs 재분류 + PRD 소유·버전 🔴
+
+### 현황 — 구조적 불일치
+
+**기획 단위(org) ≠ 산출 단위(repo).** frontend / backend / data 3개 repo 가 하나의 org 기획을 구현하는데, PRD 는 지금 **repo 단위**(`<this-repo>/docs/prd/`)에 있고 org 에는 `<org>/workflows/<id>/PRD.md`(워크플로 스코프) 와 `<org>/reports/`(산출물) 만 있다.
+
+**이 리포가 이미 그 대가를 치르는 중이다:**
+
+| 증상 | 커밋 |
+|---|---|
+| 시뮬 PRD v1.8 → v1.9.0 리네임 | `8eef9d6` |
+| 클라우드 PRD v1.4.5 → v1.6.0 리네임 | `eec6c94` |
+| 리네임이 남긴 stale 참조 일괄 수정 | `969d2d9`, `63fff12` |
+
+**문서를 릴리스 버전에 묶은 직접 비용이다.** 로드맵 슬롯이 바뀔 때마다 파일명·내부 참조·INDEX 가 함께 흔들린다.
+
+### 논점
+
+**분류 기준 제안 — "repo 가 삭제돼도 살아남아야 하는가"**
+
+| org 에 남을 것 | repo 에 붙을 것 |
+|---|---|
+| 의사결정·시그널·가설·OKR | API 계약·스키마·마이그레이션 노트 |
+| 시장·고객·도메인 지식 | 아키텍처·ADR (구현 방법) |
+| **제품 PRD (무엇을·왜)** | 런북·운영 절차 |
+| 리포트·연구 산출물 | CHANGELOG·릴리스 노트 |
+
+**버전 — 두 체계는 독립적으로 움직인다.** frontend v2.3 + backend v1.8 이 같은 org 기획을 구현한다. 하나의 semver 로 둘 다 표현하려는 시도가 위 리네임의 원인이다.
+
+| 옵션 | 내용 | 평가 |
+|---|---|---|
+| ⓐ org PRD 단일 + repo 는 실행계획 파생 | 기획 단일 진실 | 계약 표현 불가 |
+| ⓑ 2층 — org PRD(제품) + repo PRD(인터페이스 계약) | 계약 명시 | 유지비 2배 |
+| **ⓒ org PRD = 날짜·슬러그 id(semver 아님) + repo = semver** | 참조로 연결 | **리네임 문제가 구조적으로 소멸** |
+
+### ★ 1차 개선안 — ⓒ 채택, 두 축을 분리하고 참조로 잇는다
+
+1. **org PRD 는 semver 를 쓰지 않는다.** id 는 `prd-YYYY-MM-DD-<slug>` (워크플로 id 규약 `wf-YYYY-MM-DD-<slug>` 와 동형). 로드맵 슬롯이 바뀌어도 **파일명이 불변**이므로 리네임·stale 참조가 원리적으로 발생하지 않는다.
+2. **repo 는 semver 릴리스만 갖는다.** repo 의 CHANGELOG 항목이 **org PRD id 를 인용**한다:
+   ```markdown
+   ## [2.3.0] — 2026-09-01
+   구현: prd-2026-08-15-checkout-revamp (org)
+   ```
+   → 하나의 org 기획이 frontend v2.3 · backend v1.8 · data v0.9 로 나뉘어도 **역추적이 성립**한다. changeset·ADR 번호 체계와 같은 패턴.
+3. **org 에 `<org>/prd/` 를 신설한다.** 현재 PRD 는 `<org>/workflows/<id>/PRD.md` 로 **워크플로 수명에 종속**되어 워크플로가 끝나면 사실상 묻힌다. `<org>/prd/` 로 승격하고 워크플로는 그것을 *참조*한다.
+   ```
+   <org>/
+   ├── prd/prd-2026-08-15-checkout-revamp.md   ← 제품 결정 (영속)
+   ├── workflows/wf-…/                          ← 실행 (수명 있음, prd 참조)
+   ├── reports/                                 ← 산출물
+   └── repositories/*.yaml                      ← repo 매니페스트
+   ```
+4. **`repositories/*.yaml` 를 docs 매니페스트로도 쓴다.** [[260621-multi-repo-execution]] §2.2 가 이미 *"이게 Google `repo` 의 manifest 와 같은 역할"* 이라 진단했다. 여기에 `docs_root`(repo 내 문서 위치) 필드를 더하면 org 가 **"어느 repo 에 어떤 문서가 있는지"** 를 알게 되고, 이는 §D1 context 조립기의 입력이 된다.
+5. **이 리포 자신에게도 적용한다(도그푸딩).** `docs/prd/v1.5.0_*.md` 같은 버전-바인딩 파일명은 유지하되(published 계약), **신규 문서부터 날짜·슬러그**를 쓴다. `docs/prd/INDEX.md` 가 슬롯↔문서 매핑을 소유한다.
+
+### 리스크 · 미결
+
+- 기존 60여 개 PRD 를 일괄 리네임하면 git 히스토리·외부 링크가 깨진다 → **신규부터 적용**, 과거는 INDEX 매핑으로 흡수.
+- `<org>/prd/` 를 누가 쓰는가? Chief? PM? → §B1 에 따라 **PM 소유**가 자연스럽다. 마이그레이션 스크립트 필요.
+
+---
+
+## B4. 실행 컨텍스트 4갈래 통합 🔴
+
+### 현황 — "누가 어디서 도는가"가 4개 스키마로 흩어져 있다
+
+| 축 | 현재 표현 | 문제 |
+|---|---|---|
+| 팀 소속 | `teams/*/composition.yaml` | ✅ 데이터로 잘 되어 있음 |
+| repo 지정 | chief `@slug` → `[target_repo:…]` / workflow stage `target_repo` / goal frontmatter `target_repo` / cron **없음** | 4문법 · 카디널리티 상이(단수/복수) |
+| 실행 cwd | chief = org루트 + 전 repo `--add-dir` / goal = `cwd: orgCwd` **add-dir 없음**(`goal-runner.ts:164`) / cron = `resolveOrgCwd` 가 레거시 디렉토리만 찾아 **fallback** | 🔴 **공유 해소 로직 자체가 없음** |
+| 세션 귀속 | `<org>/.solosquad/sessions/<user>.json` | 과제·스레드 단위 개념 없음 |
+
+### ★ 1차 개선안 — `ExecutionContext` 단일 스키마 + Track A·B 병합
+
+1. **하나의 타입으로 통합한다.**
+   ```ts
+   type ExecutionContext = {
+     agent: string;              // 누가
+     session: SessionRef;        // 어느 세션에서 (§D2)
+     cwd: string;                // 어디서
+     repos: RepoRef[];           // 무엇을 볼 수 있나 (--add-dir 대상, 복수)
+     backend: BackendRef;        // 어느 백엔드로 (§C1)
+     handoffTo?: string;         // 누구에게 넘기나
+     budget: BudgetRef;          // 얼마까지 (§D4)
+   };
+   ```
+2. **repo 지정 문법을 하나로.** 정본은 **복수 `target_repos: string[]`** 으로 하고, 단수 `target_repo` 와 `@slug` 마커는 **파서 레벨에서 정규화**한다(기존 표기는 계속 받되 내부 표현은 하나). cron 에도 같은 필드를 추가한다.
+3. **`resolveExecutionContext()` 를 단일 진입점으로.** chief·goal·cron·workflow 네 경로가 **전부 이 함수를 통과**하게 한다. 그러면 `goal` 의 add-dir 누락과 `cron` 의 fallback 이 **한 곳을 고쳐서** 동시에 해결된다.
+4. **`--add-dir` 벤더 제약을 이 층이 흡수한다.** `src/bot/claude-process.ts:15-17` 이 기록한 stream-json ↔ `--add-dir` 비호환은 백엔드 어댑터의 관심사여야지, 네 실행 경로가 각자 알 일이 아니다 (§C1 과 연결).
+5. **Track A(동적) 와 Track B(정적) 를 병합한다.** PRD 는 둘을 분리했으나 **같은 스키마의 두 뷰**다 — B 는 선언(누가 어디 속하나), A 는 그 해소(지금 어디서 도나). 분리하면 스키마가 두 벌이 된다.
+6. **부수효과 — §B1 A/B 실측이 가능해진다.** 토폴로지가 데이터면 `Chief 직결` vs `Chief→PM` 을 컨텍스트만 바꿔 같은 과제로 돌릴 수 있다.
+
+---
+
+## B5. 팀 taxonomy 문서-구현 불일치 🟡
+
+### 현황
+
+| | 문서 | 코드 |
+|---|---|---|
+| 팀 | 4팀 (product/engineering/design/marketing) — AGENTS.md, v1.1 PRD | **5팀** (brand/business/core/engineering/product) |
+| 에이전트 | 25 | **19** |
+| architecture.md 헤더 | v0.7.0 · 존재하지 않는 telegram/`src/scheduler/` 참조 | — |
+
+가장 쉽게 반박당하는 표면이며, 실제로 대외 평가에서 **"문서-구현 정합성 C+"** 의 직접 근거가 됐다.
+
+### ★ 1차 개선안
+
+1. **코드를 정본으로 문서를 일괄 정정.** AGENTS.md(§Team Composition) · `docs/architecture.md` · `v1.1-multi-agent-team-architecture.md`(historical 표기 추가) · manual 2종.
+   ⚠️ AGENTS.md 는 **human-edited only** 이므로 이 항목은 AI 가 아니라 사용자가 직접 수정해야 한다 — 제안만 제시한다.
+2. **CI 게이트 신설.** `composition.yaml` 을 파싱해 팀 수·에이전트 수를 세고, 문서의 선언값과 다르면 실패. `npm run docs-check` 에 편입(이미 4-docs 게이트가 있으므로 자리 존재).
+3. **Hermes V2 미채택 2건 재평가:**
+   - **specialist `DESCRIPTION.md`** — 메인 에이전트가 서브를 *읽고 고르는* 계층. 현재는 라우터가 keyword 로 고른다. 도입 시 §B2 마켓플레이스의 "카탈로그" 역할을 겸한다 → **채택 권고**.
+   - **팀 화이트보드(Redis)** — [[260514-agent-view-teams-application]] 제안 B(mailbox `_messages.jsonl`)와 동일 아이디어. Redis 는 1인 인프라에 과함 → **파일 기반 mailbox 로 축소 채택**, broadcast 금지(비용이 팀 규모에 비례).
+
+---
+
+## B6. 터미널 1급 제어 표면 🟡
+
+### 현황
+
+사업계획서가 이미 **2트랙 저니**(이동 중 = Discord, 본격 업무 = 터미널)를 인정했는데, 아키텍처는 따라가지 못한다. Chief 는 `#owner-command` 채널로만 도달 가능하고, 터미널 경로는 사실상 *"repo 에서 `claude` 를 직접 실행"* 이라 **오케스트레이션·HITL 승인·org 메모리 기록을 우회하거나 못 누린다.**
+
+### ★ 1차 개선안 — `solosquad chat`
+
+1. **라우터를 메신저에서 분리한다.** 현재 `classifyIncoming` → Chief dispatch 경로가 Discord 이벤트에 결합되어 있다. **입력 소스를 추상화**해 `{platform: 'discord'|'slack'|'tty', user, text, threadRef}` 를 받는 함수로 만든다. 이는 §B4 `ExecutionContext` 와 같은 리팩터 묶음.
+2. **`solosquad chat` 신규 CLI** — 같은 Chief 세션·같은 org 메모리·같은 HITL 카드를 **터미널 stdin/stdout 으로** 노출. 승인 카드는 Discord embed 대신 프롬프트로 렌더.
+3. **세션 공유.** 터미널과 Discord 가 **같은 `sessions/<user>.json` 을 쓴다.** 이동 중 Discord 로 시작한 대화를 책상에서 터미널로 이어받는 것이 2트랙 저니의 실체다.
+4. **`solosquad agents` (watch)** — [[260514-agent-view-teams-application]] 제안 D. `<org>/workflows/*` + `<org>/goals/*` 를 라이브 테이블로. 토큰 추가 소비 없는 로컬 파일 polling. §D2 멀티 세션이 도입되면 **필수**가 된다(세션이 여러 개인데 볼 방법이 없으면 안 됨).
+
+---
+
+# C. 멀티 LLM
+
+## C1. 하네스 인터페이스 — 이미 다 쓰여 있다 🔴
+
+### 현황
+
+`docs/prd/v1.x-llm-backend-abstraction.md` 의 **10개 차단점이 사실상 완성된 인터페이스 명세**다. PRD Track 0 은 이걸 "산출물"로 미뤘지만, 새로 설계할 게 아니라 **승격하면 된다.**
+
+| 차단점 | → 인터페이스 |
+|---|---|
+| 1 session 모델 · 2 Task tool 부재 | `spawn()` / `session()` ← **§0.3 근본 해결** |
+| 3 stream JSON 포맷 | `LlmStreamEvent` 공통 타입 (start/tool_use/text_delta/tool_result/end/error) |
+| 4 SKILL.md vendor 종속 | `assembleAgentDefinition()` — 런타임 변환 |
+| 5 auth probe | `authStatus()` |
+| 6 `--append-system-prompt` 부재 | `assembleSystemPrompt(layers)` ← **8단계 조립기가 붙는 자리** |
+| 7 비용 형식 · 10 과금 모델 | `parseCost()` + backend별 강제 cap |
+| 8 dev-confirm hook 위치 | `matchToolUse()` ← **Track C 백엔드 무관층의 실체** |
+| 9 context window | backend별 `max_context_tokens` |
+
+### 논점 — v0.10.0 이 revert 된 진짜 이유
+
+기술 실패가 아니었다. 575/575 테스트 green, dry-run 정상이었다. 사유는:
+
+> *"코드는 깨지지 않지만(정직한 throw), README / master-guide / wizard prompt 가 Codex 선택지를 노출 → 사용자가 **지금 쓸 수 있는 옵션**으로 오해할 인지 부담"*
+
+**이 교훈이 이번 설계의 규율이 된다.**
+
+### ★ 1차 개선안 — 내부 도입 · 표면 비노출
+
+1. **`src/harness/` 신설** (기존 `src/llm/` 이 아니라 — 이건 모델 어댑터가 아니라 하네스다). 5개 관심사: `spawn` · `session` · `tool` · `stream` · `budget`.
+2. **`ClaudeCodeAdapter` 를 먼저 100% 구현한다.** 새 기능이 아니라 **기존 `claude-process.ts` + `chief-runner.ts` 의 리팩터**다. 이 단계에서 백엔드는 여전히 1개이므로 **사용자 표면 변화 0**.
+3. **`spawn()` 소유권을 되찾는다** — 이게 이 문서 전체의 핵심 액션이다. Claude Code `Task` 도구 대신 우리가 하위 `claude` 프로세스를 직접 띄우면, 그 프롬프트를 **우리가 조립**한다. 그 순간 `preflightSpawn`(현재 dead)이 살아난다.
+   - 단, Task 위임에는 실이점이 있다(모델이 위임 시점·대상을 판단). → **하이브리드**: Chief 가 "누구에게" 를 정하되 **실행은 우리 spawn 을 거치게** 하는 도구를 제공(§D1-ⓑ 파일 우회가 그 과도기 형태).
+4. **`workspace.yaml` 에 `llm_backend` 필드를 도입하지 않는다** (v0.x 약속 유지). 백엔드는 당분간 내부 개념이고, 사용자에게 선택지로 노출하는 시점은 **두 번째 어댑터가 실동작한 뒤**다.
+5. **벤더 회귀 흡수를 인터페이스 책임으로 명문화.** `--add-dir`/stream-json 비호환(v1.3.10) 같은 사건이 다시 오면 **어댑터 한 곳만** 고친다. 지난 두 번의 hotfix 가 이 층의 부재 비용이었다.
+
+---
+
+## C2. Codex 는 열등한 백엔드가 아니라 패턴 소스 🔴
+
+### 현황 — 두 문서가 Codex 를 정반대로 그린다
+
+| | `v1.x-llm-backend-abstraction` (2026-05) | [[260605-ochestrator-session]] §5.1 (2026-06) |
+|---|---|---|
+| session | "개념 없음. stateless" | **rollout JSONL 영속** (`~/.codex/sessions/…`, ThreadId), `codex resume` |
+| 압축 | 언급 없음 | **`min(설정, window×0.90)` 자동 compaction**, handoff summary |
+| 정적 지침 | "skill 개념 없음" | `AGENTS.md` root→cwd 병합, 32KiB 상한, override 규약 |
+| 학습 메모리 | 없음 | **Codex Memories** (SQLite, 유휴 ~6h 비동기, 2-모델 파이프라인, redaction) |
+| 장기 실행 | "매 호출 full prompt 청구" | **~25시간 무중단 · ~1,300만 토큰 · ~3만 LOC** |
+
+**후자가 최신이고, 여러 축에서 SoloSquad 보다 앞서 있다.**
+
+### ★ 1차 개선안 — 스파이크의 목적을 바꾼다
+
+1. **rev4 §0.4 스파이크의 질문을 교체한다.**
+   - ❌ "Codex 어댑터를 Py 로 짜면 이득인가"
+   - ✅ **"Codex 의 세션·메모리 모델을 우리 인터페이스가 표현할 수 있는가"**
+   후자가 훨씬 유용하다 — 인터페이스 설계를 **실제로 검증**하기 때문이다. 앞의 질문은 §A1 에서 이미 답이 났다.
+2. **차용할 패턴 4건을 명시적으로 채택 목록에 올린다:**
+
+   | Codex 패턴 | SoloSquad 반영 | 항목 |
+   |---|---|---|
+   | rollout JSONL + `resume` | 세션 트랜스크립트 영속화 | §D2 |
+   | 90% 자동 compaction + handoff summary (user 원문 보존 + 최근 ~20k, assistant·tool 폐기) | 임계 자동 교대 | §D3 |
+   | Memories (2-모델 파이프라인, redaction) | 학습형 cross-session 메모리 | §D5 |
+   | durable-md 4종 (`Prompt`/`Plan`/`Implement`/`Documentation`) + stop-and-fix | 장기 goal 외부화 | §D3 |
+
+3. **Qwen 은 반면교사로 기록한다** — 70% 임계 압축인데 *"1차 압축 이후 잘 안 줄고, 압축 후 재개 시 토큰 카운트가 어긋나는 버그"*. 우리가 §D3 를 구현할 때 **재개 후 토큰 회계 정확성**을 테스트 항목으로 못 박는 근거.
+4. **Codex Goals 6필드를 goal 스펙에 이식**(§D4-2 와 통합).
+
+---
+
+## C3. 구독(auth) vs API key vs 로컬 LLM + 오케스트레이션 라우팅 🔴
+
+### 현황 — 같은 인터페이스로 감쌀 수 없는 층위 차이가 있다
+
+| | Claude Code / Codex (구독 CLI) | LLM API key | 로컬 LLM |
+|---|---|---|---|
+| **정체** | **하네스를 통째로 가진 CLI** | 모델만 | 모델만 |
+| 세션 | `--session-id --resume` 네이티브 | stateless — 직접 관리 | stateless |
+| 도구 | CLI 내장 (Task/Bash/Edit/Glob…) | **직접 구현** | **직접 구현** |
+| 과금 | 월 정액, 예측 가능 | 토큰당, 폭증 위험 | 전력·하드웨어 |
+| 인증 | OAuth, CLI 가 소유 | key 보관·마스킹 필요 | 없음 |
+| 한도 신호 | rate-limit 상태 이벤트 (✅ v1.4.2 가 이미 처리) | 429 / quota | 동시성·VRAM |
+
+이 비대칭을 무시하고 하나의 `LlmAdapter` 로 묶으면, **API/로컬 어댑터는 "모델은 되는데 아무것도 못 하는" 껍데기**가 된다 — 도구도 세션도 훅도 우리가 직접 만들어야 하기 때문이다.
+
+### ★ 1차 개선안 — 2계층 어댑터 + 순서 역전 인정
+
+1. **어댑터를 2 tier 로 나눈다.**
+   - **Tier-1 (CLI 백엔드)** — Claude Code, Codex. 세션·도구·훅을 **위임**. `spawn()` 은 프로세스 기동이다.
+   - **Tier-2 (raw 모델)** — Anthropic/OpenAI API, Ollama/llama.cpp. SoloSquad 가 하네스를 **직접 제공**. `spawn()` 은 우리 에이전트 루프의 기동이다.
+2. **순서 역전을 문서에 명시한다.**
+   > **Tier-2 는 Track A(memory·router·context·handoff) 와 Track C(hook·가드) 가 없으면 원리적으로 불가능하다. 즉 Track A/C 가 멀티 LLM 의 선행조건이지 그 반대가 아니다.**
+   PRD 는 Track 0 → A~D 순서인데, **Tier-1 만 그 순서가 맞고 Tier-2 는 정반대**다.
+3. **로컬 LLM 은 전량 대체가 아니라 저난도·고빈도부터.** 코드에 이미 후보가 있다:
+
+   | 후보 | 위치 | 성격 |
+   |---|---|---|
+   | freq-keyword-miner | `src/scheduler/` | 키워드 추출 |
+   | trajectory-extractor | `src/scheduler/` | 요약·구조화 |
+   | v06-stats-extract | `src/scheduler/` | 수치 추출 |
+   | **라우팅 분류 자체** | `classifyIncoming` | 짧은 분류 |
+
+   여기가 실 ROI 지점이다. **"로컬로 Chief 를 돌린다"는 목표는 세우지 않는다.**
+4. **라우팅 정책을 4축으로 선언한다.**
+   ```yaml
+   # workspace.yaml
+   routing:
+     default: claude-code
+     rules:
+       - when: {primitive: cron, effort: low}      use: local     # ①작업 종류
+       - when: {budget_remaining_pct: "<20"}       use: local     # ②예산 잔량
+       - when: {backend_status: rate_limited}      use: codex     # ③가용성 폴백
+       - when: {contains_secret: true}             use: local     # ④프라이버시
+   ```
+   1차 근사는 이미 제안되어 있다 — [[260712-long-horizon-codex-goals-vs-fable5]] §6.5 **primitive 별 기본 effort 표**(일상 cron = low/medium, goal 자율 = high, workflow verify = xhigh).
+5. **③ 가용성 폴백을 최우선 구현한다.** v1.4.2 가 이미 rate-limit `warning`/`exceeded` 를 파싱하고 있으므로 **신호는 있고 행동만 없다.** `exceeded` 시 폴백 백엔드로 전환하면 "24/7" 이 실제로 24/7 이 된다 — 사용자 체감이 가장 큰 단일 기능.
+6. **시크릿은 §D6 로 위임하되 경계를 정한다** — API key 는 **OS keychain 우선, 없으면 `<workspace>/.solosquad/secrets/`(0600)**. `<org>` 에 두지 않는다(org 는 백업·공유 대상이 될 수 있음). 마스킹은 v0.2 자산 재사용.
+
+### 리스크 · 미결
+
+- Tier-2 를 만들면 **우리가 도구(Bash/Edit/Glob)를 직접 구현**해야 한다 — 이게 진짜 비용이고 v1.5.0 범위를 넘을 가능성이 크다 → **v1.5.0 은 Tier-1 만, Tier-2 는 2.0** (§T4).
+- 로컬 LLM 의 품질 하한이 불확실 → 폴백 대상 작업은 **실패해도 재시도 가능한 것**으로 제한.
+
+---
+
+# D. 하네스 엔지니어링
+
+## D1. 워크플로 코어 — memory · router · context · handoff 🔴
+
+### 현황
+
+| primitive | 현재 | 공백 |
+|---|---|---|
+| **memory** | org jsonl + FTS5 hot/cold + git snapshot | 학습형 cross-session 부재 · repo 필터 없음 · GC 미정의 |
+| **router** | 4채널 (slash > explicit > keyword > freq) + `@slug` mention-parser | **백엔드 라우팅**(§C3) · **세션 라우팅**(§D2) 없음 |
+| **context** | 8단계 조립기 | 🔴 **dead — 참조 0건** |
+| **handoff** | `_handoff.md` 단방향 + `_log.md` 누적 | mailbox 없음 · `Recommended By` 없음 · 슬라이서 미연결 |
+
+### ★ 1차 개선안 — context 를 두 단계로 살린다
+
+1. **ⓑ 파일 우회를 **즉시** 적용한다 (저비용·선행).**
+   조립기 결과를 파일로 떨구고 프롬프트가 그것을 읽게 한다:
+   ```
+   <org>/workflows/<id>/.context/<stage-id>.md   ← preflightSpawn 결과
+   ```
+   Chief 의 Task 프롬프트에 `Read ./.context/<stage-id>.md first.` 한 줄만 추가하면 된다. **`Task` 를 가로채지 않고도 조립기가 살아난다.** [[260514-harness-pattern-adoption]] 패턴 2 의 metric-pack 이 정확히 이 형태이며, 이미 검증된 아이디어다.
+   → **이 한 액션이 §0.2 의 최대 결손을 가장 싸게 해소한다.**
+2. **ⓐ spawn 소유는 §C1 뒤에.** 인터페이스가 서면 조립 결과를 파일이 아니라 **프롬프트에 직접** 주입한다. ⓑ 는 폐기하지 않고 **감사 로그**로 남긴다(무엇이 주입됐는지 사람이 읽을 수 있음).
+3. **토큰 추정을 고친다.** 한국어에서 `문자수/4` 는 과소평가라 cap 이 안전을 보장하지 못한다(평가 리포트 §1). 최소한 **한글 문자에 별도 계수**를 적용하고, 실측 토큰과 대조하는 테스트를 둔다.
+4. **goal measurer 유사난수를 교체한다.** `src/cli/goal.ts:629` `makePlaceholderMeasurer()` 는 `source|formula|commitSha` 해시를 [0,1) 로 매핑한다. **v1.9.0 유료 제품이 이 스택 위에 서므로 매출 직결 리스크**다. 교체가 v1.5.0 범위를 넘으면, **최소한 산출물에 `[PLACEHOLDER — not a measurement]` 를 강제 표기**한다(정직성 원칙).
+5. **handoff 보강 2건** — `## Recommended By`(권고자 트레이서빌리티, 패턴 4) + `_messages.jsonl` mailbox(1:1 또는 `to: pm` 만, **broadcast 금지**).
+6. **memory 에 repo 필터를 넣는다.** org 공유 브레인은 옳지만([[260621-multi-repo-execution]] §1.3), *"이 결정이 어느 repo 관련인지"* 필터가 없다. jsonl 레코드에 `repo?: slug` 를 추가(선택 필드라 하위호환).
+
+---
+
+## D2. 멀티 세션 vs 스레드 🔴
+
+### 현황
+
+user 당 세션 1개(`<org>/.solosquad/sessions/<user>.json`). Discord 스레드는 v1.4.1(works-thread-chat)로 열렸으나 **세션과 1:1 이 아니다.**
+
+### 논점
+
+| 옵션 | 격리 | 비용 | UX 정합 |
+|---|---|---|---|
+| ⓐ 세션 = 사용자 (현행) | 낮음 | 최저 (캐시 hit 최대) | 스레드와 어긋남 |
+| ⓑ 세션 = 과제/워크플로 | 높음 | 중 | 자연스러움 |
+| ⓒ 세션 = repo | 중 | 중 | 멀티repo 작업과 충돌 |
+| ⓓ 세션 = 스레드 1:1 | 높음 | **최고** | **가장 정직** |
+
+**비용 실측** — Agent Teams 는 단일 세션 대비 **5~7배 토큰**, C 컴파일러 사례 16에이전트/2주 = **$20K**([[260514-agent-view-teams-application]]). 이건 SoloSquad 자율 goal 사이클에서 **재현 가능한 위험**이다.
+
+### ★ 1차 개선안 — ⓓ + idle 요약 종료 + rehydrate
+
+1. **스레드 = 세션 1:1 을 채택한다.** 사용자 멘탈모델과 어긋나는 구조는 결국 버그로 인식된다. v1.4.1 이 이미 스레드 대화를 열었으므로 **이 결정이 급하다.**
+2. **비용은 생명주기로 잡는다** (세션 수 제한이 아니라):
+   ```
+   활성 → (idle N분) → 요약 후 종료 → (재진입) → 요약으로 rehydrate
+   ```
+   Codex `resume` + rollout 패턴의 축약형. 세션이 100개여도 **동시 활성은 소수**가 된다.
+3. **세션 레지스트리를 도입한다.** `sessions/<user>.json` → `sessions/<session-id>.json` + `index.json`(threadRef ↔ session-id ↔ 상태 ↔ 최종활동). §B6 `solosquad agents` 가 이걸 읽는다.
+4. **동시 활성 상한을 workspace.yaml 에.** `sessions.max_active`(기본 3) + 초과 시 LRU 요약 종료. §D4 BudgetGuard 와 연동.
+5. **§B4 `ExecutionContext.session` 이 이 레지스트리를 참조**한다 — 세션이 늘어나는 순간 "누가 어디서 도는가"를 데이터로 알아야 하기 때문.
+
+---
+
+## D3. 세션 핸드오버 · 격리 (worktree / 샌드박스 / VM / 컨덕터) 🔴
+
+### 현황 — 핸드오버
+
+임계 기반 자동 교대가 **미구현**이다. `pm-compaction` cron(23:00) 은 있으나 **일 단위**이고 임계 반응이 아니다.
+
+| 시스템 | 임계 | 방식 |
+|---|---|---|
+| OpenAI Codex | **90%** (`min(설정, window×0.90)`, 초과 설정은 조용히 무시) | handoff summary — **user 메시지 원문 보존 + 최근 ~20k 토큰, assistant·tool 전부 폐기** |
+| Qwen Code | 70% | 요약 — **압축 후 재개 시 토큰 회계 버그** 보고됨 |
+| 가이드 문서 | 64% 경고 / 80% 교대 | 절대값 아님 |
+| **SoloSquad** | **없음** | — |
+
+### 현황 — 격리
+
+| 수준 | 격리 | 비용 | 적합 | 배치 |
+|---|---|---|---|---|
+| 없음 (현행) | 파일 충돌 위험 | 0 | 단일 세션 | — |
+| **git worktree** | 파일 충돌 **자동** 격리 | 디스크 + ~수백ms | 병렬 코드 작업 | **v1.5.0** |
+| 샌드박스 (권한 제한) | 파괴 명령 차단 | 낮음 | 무인 자율 실행 | **v1.5.0** |
+| 컨테이너 / VM | 완전 격리 | 높음, 상태 이전 필요 | 클라우드 | v1.6.0 |
+
+> **worktree 가 [[260514-agent-view-teams-application]] 제안 C(file-disjoint lock)의 업계 정답이다.** 글로브 충돌 판정 로직을 짤 필요 없이 git 이 해결한다(Agent View 채택 방식). **제안 C 는 폐기하고 worktree 로 대체한다.**
+
+### ★ 1차 개선안
+
+1. **자동 교대 임계 = 85%.** Codex 90% 와 가이드 80% 사이. 근거: Qwen 의 70% 가 *"1차 압축 이후 잘 안 준다"* 는 실패 사례를 남겼으므로 **너무 이른 압축은 이득이 없다**. 워크스페이스에서 조정 가능(`sessions.compact_threshold`).
+2. **무엇을 남기고 버릴지 Codex 규약을 그대로 채택** — user 메시지 **원문 보존** + 최근 ~20k 토큰, assistant·tool 메시지 폐기. "요약"이 아니라 **선택적 보존**이라는 게 핵심이다.
+3. **재개 후 토큰 회계 정확성을 테스트 항목으로 못 박는다** (Qwen 반면교사). 압축 → 재개 → 토큰 카운트 일치 검증.
+4. **worktree 격리를 병렬 stage 의 기본값으로.** `ExecutionContext` 에 `isolation: 'none'|'worktree'` 필드. **코드를 수정하는 stage 가 2개 이상 동시**일 때만 worktree(생성 비용이 있으므로 무조건 켜지 않음). 변경 없으면 자동 정리.
+5. **샌드박스 = dev-confirm 의 무인 모드 확장.** 현재 `src/bot/dev-confirm-hook.ts` PreToolUse 가 **유일하게 라이브인 가드**다. 무인 실행(cron/goal)에서는 승인을 물을 사람이 없으므로, **"승인 필요" = "차단"** 으로 동작하는 모드를 추가한다.
+6. **컨덕터를 명시적 컴포넌트로 분리한다.** 현재 `chief-runner` 가 암묵적 컨덕터인데 **단일 세션 전제**다. §D2 로 세션이 여러 개가 되면 분리가 불가피하다.
+   ⚠️ **네이밍 주의** — 우리 `supervisor` 는 이미 goal 실행 감독을 뜻한다. 새 컴포넌트는 **`conductor`**(세션 집합의 생명주기 관리: 기동·교대·정리·상한)로 명명해 충돌을 피한다.
+7. **Codex durable-md 4종을 장기 goal 에 채택** — `Prompt.md`(고정 스펙 = 드리프트 방지) · `Plan.md`(마일스톤 + 검증 커맨드) · `Implement.md`(작업 규칙) · `Documentation.md`(실행 감사 로그) + **단계마다 stop-and-fix 검증 루프**. 우리 `_handoff.md` + `_log.md` 가 그 일부이므로 **차이분만 도입**한다.
+
+---
+
+## D4. 가드레일 · 훅 6건 수렴 🔴
+
+### 현황 — 6개 문서에 흩어져 있다
+
+| 출처 | 제안 | 상태 |
+|---|---|---|
+| [[260514-agent-view-teams-application]] A | Plan Approval (`plan_pending`→`plan_approved`, `approval_criteria`) | ❌ |
+| 〃 C | file-disjoint lock | ❌ → **§D3 worktree 로 대체·폐기** |
+| 〃 E | stage `quality_gate: {script, on_fail}` (TaskCompleted 대응) | ❌ |
+| 〃 G | `BudgetGuard` per-goal / per-day / per-workflow | 🔺 부분 (author-budget) |
+| [[260712-long-horizon-codex-goals-vs-fable5]] | Codex goal **6필드** — 특히 **blocked-condition 누락** + bounded autonomy **4조건 AND** | ❌ |
+| 〃 | Fable 4종 프롬프트 (근거기반 보고 / 체크포인트 정지 / 자율 reminder / 예산 카운트다운 비노출) | ❌ |
+| v1.3.0 | dev-confirm PreToolUse | ✅ **유일 라이브** |
+
+### ★ 1차 개선안 — Track C 단일 명세
+
+1. **훅 개입점을 어댑터 이벤트에 건다** (`matchToolUse`, §C1-8). 그래야 "백엔드 무관 공통 층"이 말이 된다. 지금처럼 Claude Code `.claude/settings.json` shell 훅에만 의존하면 Codex 에서 재구현이 필요하다.
+2. **goal 스펙에 `blocked_condition` 을 필수 필드로 추가한다.** Codex 6필드 중 우리에게 없는 것이 이것이다 — *"언제 멈추고 무엇이 있어야 풀리나"*. 없으면 자율 실행이 **무한 루프이거나 조기 종료**한다. `verification_surface` 도 필수화(= 그 goal 의 eval).
+3. **continuation 판정을 4조건 AND 로 명문화** — ①턴 완료 ②세션 idle ③사용자 입력 큐 없음 ④예산 남음 & eval 미충족. cron double-fire guard 와 같은 계열의 안전 경계.
+4. **Fable 4종을 자율 실행 컨텍스트에 상시 주입:**
+   - **근거 기반 보고** — *"진행을 보고하기 전에 이 세션의 도구 결과와 각 주장을 대조하라"* → "테스트 통과했다" 류 미검증 주장 차단
+   - **체크포인트 정지 규율** — 파괴/비가역/스코프 변경/사용자 전용 입력에서만 pause
+   - **자율 파이프라인 reminder** — *"사용자는 보고 있지 않다. 되돌릴 수 있으면 묻지 말고 진행. 마지막 문단이 계획·질문·약속이면 지금 도구로 실행하라"*
+   - **예산 카운트다운 비노출** — 남은 토큰을 모델에 보여주면 조기 요약·세션 분할을 유발한다
+5. **BudgetGuard 정식화** — per-goal / per-day / per-workflow. **soft warn → hard pause 2단**(알람 피로 방지). §C3 라우팅의 "예산 잔량" 축이 이걸 읽는다.
+6. **`quality_gate` 를 stage 속성으로** — `{script, on_fail: revise|block}`. 실패 시 `needs_revision` + 실패 로그를 handoff 에 자동 첨부. 크로스플랫폼 규칙은 기존 `.claude/rules/cross-platform.md` 준수.
+7. **Plan Approval 은 `approval_criteria` 가 구체적일 때만.** 24/7 자율과 충돌하므로, **위험 stage(architect/security/모든 마이그레이션)에 한정**하고 나머지는 기준 기반 자동 승인.
+8. **"추론 재현 지시" 전수 스윕** — Fable 권고. `reasoning_extraction` 거부 → Opus 폴백 증가 리스크. 전 primitive 문서에서 *"추론을 응답에 재현/전사하라"* 류 지시를 감사·제거.
+
+---
+
+## D5. 학습형 메모리 + GC — S-3b 재정의 🟡
+
+### 현황 — 자기진단이 이미 끝나 있다
+
+[[260605-ochestrator-session]] §5.4:
+
+> *"우리는 (a)상주·(d)복구는 이미 업계 정석에 가깝고, **가장 큰 공백은 (b)임계 기반 자동 교대와 (c)학습형 cross-session 메모리**다."*
+
+(b) 는 §D3 가 다룬다. (c) 가 이 항목이다.
+
+### ★ 1차 개선안 — OQ #5 에 답하고 파이프라인을 세운다
+
+1. **PRD OQ #5 ("S-3b GC 가 archive-rotate 로 사실상 완료인가?") 의 답 = 아니다.**
+   - `archive-rotate` = hot jsonl → cold FTS5 **이동**. 데이터는 전부 살아 있다.
+   - S-3b 가 필요로 하는 것 = *"10시간 전 빌드 실패 삽질 로그는 버리고 「A 라이브러리는 버전 충돌 나니 쓰지 말 것」 교훈 한 줄만 남긴다"* — **선택적 폐기 + 추상화**.
+   - **다른 층이다.** 이 근거로 OQ #5 를 닫고 S-3b 를 "학습형 메모리 승격 파이프라인"으로 재정의한다.
+2. **`<org>/memory/LEARNINGS.md` + 승격 파이프라인.** Codex Memories 의 2-모델 파이프라인을 축약: ①무엇을 기억할지 판정 ②기존 항목과 병합·중복 제거. Fable 규약 채택 — **"파일당 교훈 하나 + 최상단 한 줄 요약"**, 오답은 삭제.
+3. **destructive 삭제는 archive-rotate 안에서만.** PRD v1.4.0 §5.3 이 이미 이 순서를 못 박았다 — **archive 전에 지우면 데이터가 증발**한다. GC 는 rotate 의 마지막 단계로 들어간다.
+4. **redaction 을 기본값으로** (Codex 패턴). 학습 메모리에 시크릿이 들어가면 org 백업·공유 시 유출된다. §D6 마스킹 자산 재사용.
+5. **auto-memory 규약과의 정합 확인** — Fable 의 메모리 설계가 우리 `MEMORY.md` 인덱스 + 파일당 사실 규약과 **판박이**다. 이미 정답 경로에 있으므로 org 메모리에도 같은 규약을 쓴다.
+
+---
+
+## D6. 도구 · 시크릿 · MCP (Track D) 🟡
+
+### 현황 — 유일하게 순수 신규 설계가 많은 영역
+
+MCP 스펙은 `v1.x-knowledge-ontology §6` 에 있으나 **지식 연결 관점**이고, v1.5.0 이 요구하는 것은 다르다:
+- 워크플로 **stage 가 도구를 쓰는 배선**
+- API 토큰 · key · 로그인/인증 관리
+- CI/CD 디렉토리 관리
+
+### ★ 1차 개선안
+
+1. **`<org>/tools.yaml` 신설** — 이 org 가 쓸 수 있는 MCP 서버·API·자격증명 참조의 **매니페스트**. `repositories/*.yaml` 이 repo 로스터인 것과 같은 자리·같은 패턴.
+2. **stage 가 도구를 선언한다** — `_status.yaml` stage 에 `tools: [github, stripe]`. §B4 `ExecutionContext` 가 이걸 읽어 해당 MCP 만 활성화한다. **[[AI_Agent_Harness_Report]] §6.2 "동적 스킬 로딩"의 최소 구현**이며, Skill-Bus 전면 채택은 하지 않는다(1인 인프라 부담).
+3. **시크릿 3원칙:** ①**OS keychain 우선**, fallback `<workspace>/.solosquad/secrets/`(0600) ②`<org>` 에 두지 않음(백업·공유 대상) ③로그·프롬프트·메모리 진입 전 **마스킹 강제**(v0.2 자산 재사용).
+4. **`solosquad doctor` 확장** — 도구 연결 상태·자격증명 만료·MCP 헬스를 진단 항목에 추가. 이미 있는 표면이라 신규 CLI 불필요.
+5. **[[260514-harness-pattern-adoption]] 패턴 2(metric_dependencies)를 여기 흡수** — agent frontmatter 가 필요한 **지표**를 선언하듯, stage 가 필요한 **도구**를 선언한다. 같은 의존성 주입 메커니즘의 두 적용이다.
+
+---
+
+# E. 횡단 결정
+
+## T1. HARD GATE 재정의 🔴 — 이 문서의 최대 기여
+
+**PRD 현재:** *"Track 0(언어/백엔드 ADR)이 정해지기 전 Track A~D 착수 금지."*
+
+**문제:** §0.2 의 미연결 4건, §B1~B6 토폴로지, §D1~D5 하네스 — **가장 값진 작업이 전부 언어 중립**이고, 언어 축은 §A1 에서 **양쪽 0** 으로 판명됐다. 현재 게이트는 착수를 막는 것 외에 아무 기능을 하지 않는다.
+
+**★ 제안:**
+> **Track 0 을 "언어 ADR" → "하네스 인터페이스 ADR" 로 교체한다.**
+> - HARD GATE 산출물 = §C1 의 5-메서드 계약 + `ClaudeCodeAdapter` 실동작
+> - 언어는 **어댑터 단위 하위 결정**으로 강등 (§A1)
+> - `docs/policy/adr-001-orchestration-language.md` 는 게이트가 아니라 **기록**으로 발행 (§A3)
+
+이 교체 하나로 **PRD OQ #1 이 닫히고 v1.5.0 이 즉시 착수 가능**해진다.
+
+## T2. 순서 역전 🔴
+
+PRD: Track 0(백엔드) → Track A~D.
+실제 의존성:
+
+```
+Tier-1 백엔드 (Claude Code, Codex)  →  Track A/C 를 강화한다   (PRD 순서 OK)
+Tier-2 백엔드 (API, 로컬 LLM)       ←  Track A/C 가 없으면 불가 (PRD 순서 반대)
+```
+
+**★ 제안:** Track 0 을 Tier 로 쪼갠다. **Tier-1 은 선행, Tier-2 는 Track A/C 완료 후**로 명시.
+
+## T3. 구조를 더할 것인가 덜어낼 것인가 🔴
+
+이 문서는 토폴로지를 **정교화**(B2·B4)하면서 동시에 계층을 **덜어낸다**(B1). 모순이 아니라 기준이 다르다:
+
+> **데이터는 더하고, 에이전트 계층은 덜어낸다.**
+> - 더할 것 — 명시적 스키마(`ExecutionContext`, 세션 레지스트리, tools.yaml). **기계가 읽고 검증할 수 있는 것.**
+> - 덜어낼 것 — 산출 품질 기여가 증명되지 않은 사람-흉내 계층(Chief↔PM 2단, main/sub 위계). **프롬프트에만 존재하는 것.**
+
+판정 기준: **"이 구조가 없으면 코드가 무엇을 못 하는가?"** 에 답할 수 있으면 유지, 없으면 실측 대상.
+
+## T4. 버전 스케일 (PRD OQ #2) 🔴
+
+18안건 전체는 명백히 major 급이다. 그러나 §0 이 옳다면 **1차 배치는 "신규 축조"가 아니라 "기존 설계의 런타임 접속"** 이라 minor 로 소화 가능하다.
+
+**★ 분할선 제안:**
+
+| 버전 | 범위 | 성격 |
+|---|---|---|
+| **v1.5.x** | §C1(인터페이스 + ClaudeCodeAdapter) · §D1(context 파일 우회) · §B4(ExecutionContext) · §D2(세션=스레드) · §D3(교대 + worktree) · §D4(가드 수렴) · §B3(PRD 체계) · §B5(정합) · §A2(curl) | **배선 · 정합 · 데이터화.** 사용자 표면 변화 최소 |
+| **v1.6.0** | 클라우드 · 컨테이너 격리 | 기존 계획 |
+| **v2.0** | §C3 Tier-2(API·로컬 LLM) · §C2 Codex 어댑터 · §B1 Chief 재편 · §B2 마켓플레이스 · §A1 Py 경계 | **격변.** 사용자 표면·계약 변경 |
+
+근거: v1.5.x 열의 항목은 전부 **기존 코드의 리팩터 또는 죽은 코드의 소생**이라 migrations 계약을 건드리지 않는다. v2.0 열은 SKILL.md 구조·워크스페이스 스키마·설치 채널을 흔든다.
+
+---
+
+# F. 배치 제안 (v1.5.x 내부 순서)
+
+의존성만 반영한 순서다. 각 단계는 이전 단계 없이는 성립하지 않는다.
+
+```
+[0] 정합 — §B5 문서 정정 + CI 게이트                     (독립, 즉시)
+     │
+[1] 소생 — §D1-ⓑ context 파일 우회 + 토큰 추정 수정        ← 최대 결손을 최소 비용으로
+     │      §D1-4 measurer 정직성 표기
+     │
+[2] 계약 — §C1 하네스 인터페이스 + ClaudeCodeAdapter        ← HARD GATE (T1)
+     │
+[3] 모델 — §B4 ExecutionContext 통합 (4경로 → 1함수)       ← goal/cron 멀티repo 동시 해결
+     │
+[4] 세션 — §D2 스레드=세션 + 레지스트리
+     │      §D3 85% 자동 교대 + worktree + conductor
+     │
+[5] 가드 — §D4 Track C 단일 명세 (blocked_condition, 4조건, Fable 4종)
+     │
+[6] 표면 — §B6 solosquad chat + agents watch
+           §A2 curl 부트스트랩
+           §B3 org PRD 체계 (신규 문서부터)
+```
+
+**[1] 을 [2] 앞에 두는 이유:** 파일 우회는 인터페이스 없이도 가능하고, **조립기가 실제로 유용한지를 [2] 에 투자하기 전에 검증**할 수 있다. 만약 조립된 컨텍스트가 산출 품질을 못 올리면 [2] 의 설계가 달라져야 한다.
+
+---
+
+# G. 미해결 질문
+
+1. **§C1-3 하이브리드 spawn 의 실현 가능성** — Chief 가 "누구에게"를 정하되 실행은 우리 spawn 을 거치게 하려면, Claude Code 세션 안에서 우리 도구를 노출해야 한다. MCP 서버로 제공하는 게 맞나?
+2. **§B1 Chief 축소 시 Educational Nudge 는 누가 소유하나** — Chief(대화 표면) vs PM(도메인 판단)?
+3. **§B3 org PRD 를 누가 쓰나** — §B1 에 따르면 PM 이지만, PM 이 user-facing 이 아니면 사용자 승인 흐름이 Chief 를 경유해야 한다.
+4. **§D2 세션 폭증의 실제 비용** — 5~7배는 Agent Teams 수치다. idle 요약 종료를 넣으면 실제 배수는? 측정 없이는 `max_active` 기본값을 정할 수 없다.
+5. **§C3 Tier-2 를 정말 만들 것인가** — 도구(Bash/Edit/Glob)를 직접 구현하는 비용이 1인 상한을 넘을 수 있다. 로컬 LLM 을 **도구 없는 순수 텍스트 작업 전용**으로 한정하면 비용이 급감하는데, 그 범위로 충분한가?
+6. **§B2 승격 게이트의 최소 표본** — "2개 이상 repo 에서 검증"이 1인 사용자에게 현실적인가? org 가 하나뿐인 사용자에게는 마켓플레이스가 성립하지 않는다.
+7. **§A1 Py 경계를 optional 로 두면 v1.9.0 유료 제품이 "설치 안 된 사용자"를 가진다** — 번들 전략을 언제 결정하나?
+
+---
+
+# H. 근거 목록
+
+**코드 (2026-08-03 실물 재검증)**
+
+| 주장 | 근거 |
+|---|---|
+| 조립기 dead (참조 0건) | `src/bot/chief-runner.ts:1061` — `src`+`test` 전체에서 정의부가 유일 히트 |
+| goal 측정 유사난수 | `src/cli/goal.ts:362,497` → `makePlaceholderMeasurer()` `:629` |
+| goal 외부 repo 미도달 | `src/engine/goal-runner.ts:164` = `cwd: orgCwd`, add-dir 없음 |
+| 3-tier 라우팅 (org local 최우선) | `src/bot/agent-router.ts` 헤더 주석 |
+| SDK 미사용 / 서브프로세스 방식 | `src/bot/claude-process.ts:8` `claude --print` wrapper |
+| `--add-dir` ↔ stream-json 비호환 | `src/bot/claude-process.ts:15-17` + 마이그레이션 `1.3.9-to-1.3.10.ts:13`, `1.3.10-to-1.3.11.ts:15` |
+| dev-confirm 이 유일 라이브 가드 | `src/bot/dev-confirm-hook.ts` PreToolUse |
+
+**문서**
+
+- `docs/prd/v1.5.0_orchestration-and-harness-platform.md` (rev4) — §0.1 실측표 · §0.2 폐기 논거 · §0.3 기각 사유 · §0.4 스파이크 절차
+- `docs/prd/v1.x-llm-backend-abstraction.md` — 10 차단점 (§C1 의 원천)
+- [[260605-ochestrator-session]] — §5.1 Codex 실측 · §5.3 4축 대조 · §5.4 공백 2건
+- [[260712-long-horizon-codex-goals-vs-fable5]] — Codex 6필드 · bounded autonomy 4조건 · Fable 4종 프롬프트 · §6.5 effort 표
+- [[260621-multi-repo-execution]] — §1.2 세 경로 진단 · §1.3 org 메모리 타당성 · §1.4 4문법 · §2.2 매니페스트 패턴
+- [[260514-agent-view-teams-application]] — 제안 A/B/C/D/E/G
+- [[260514-harness-pattern-adoption]] · [[AI_Agent_Harness_Report]] — 패턴 4건 · §6 청사진 · §7 갭 분석
+- [[multi-agent-directory]] — Hermes V2 5-layer · specialist DESCRIPTION.md · 팀 화이트보드
+- [[260724_기술설계_솔루션적절성_v2]] — PART A §1~§8 · PART C Q1~Q8 · PART D 권고
+- [[260721-solosquad-final-review]] — **기각됨** (§A3 처분 대상)
+- [[curl-publish]] — OpenClaw npm+1-liner 패턴 (§A2 의 원천)
