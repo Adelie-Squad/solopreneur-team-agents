@@ -51,7 +51,7 @@ It covers, in ten menu-divided sections:
 | 2 | How It Works | System architecture, folder hierarchy, memory model, workflow definition |
 | 3 | Concept Glossary | `SKILL.md`, `KNOWLEDGE.md`, `CLAUDE.md`, `AGENTS.md` comparison; per-layer file inventory; 4-channel routing |
 | 4 | Onboarding | Branches for new users, existing-repo migration, and version upgrades |
-| 5 | Messenger Setup | 8-step Discord token walkthrough (Slack walkthrough retained as a post-v1.0 reference) |
+| 5 | Messenger Setup | Discord walkthrough — §5.1 Developer Portal prep (token · Application ID · your User ID), §5.2 invite + auto-created channels, §5.3 verification (Slack walkthrough retained as a post-v1.0 reference) |
 | 6 | Usage | CLI reference (current + planned), daily ops, first-run checklist, automated crons |
 | 7 | Glossary | 60+ core terms, file-name dictionary, acronym dictionary — beginner-friendly |
 | 8 | Version Differences | v1.3.2 (npm-published) vs upcoming releases |
@@ -140,17 +140,22 @@ Full release notes: [CHANGELOG.md §1.3.11](CHANGELOG.md).
 
 ```bash
 # 1. Prerequisites (one-time)
-brew install node git                             # macOS — see master-guide §4.2 for Windows/Linux
+brew install node git                             # macOS, Node >=20 — see master-guide §4.2 for Windows/Linux
 npm install -g @anthropic-ai/claude-code
 
-# 2. Install SoloSquad
+# 2. Prepare the Discord bot BEFORE init — master-guide §5.1 (3–5 min, browser)
+#    Create an Application → Reset Token → Message Content Intent ON
+#    → copy the Application ID → copy your own User ID (Developer Mode)
+#    init auto-detects the last two; have them ready for when it can't.
+
+# 3. Install SoloSquad
 npm install -g solosquad
 mkdir ~/solosquad-workspace && cd ~/solosquad-workspace
 solosquad init                                    # wizard handles Claude OAuth (Step 1.5) + Chief name + Discord token + invite URL auto-open
 solosquad doctor                                  # verify environment
 solosquad doctor --discord                        # focused 5-hop Discord diagnostic (v1.2)
 
-# 3. Start the bot
+# 4. Start the bot
 solosquad bot                                     # foreground
 # or
 docker compose up -d --build                      # background + auto-restart (from workspace root; init dropped the compose file here)
@@ -158,7 +163,7 @@ docker compose up -d --build                      # background + auto-restart (f
 
 When you invite the bot to a guild, the **guildCreate onboarding embed** appears in the system channel. Click **Auto-create channels** → the bot creates `#command-<handle>` and `#works-<handle>`, posts a first greeting in the command channel, and you're ready. Send a message — the Chief responds.
 
-**Messenger token setup** takes 3–5 minutes (Discord). Follow [master-guide §5](manual/master-guide_en.html) step-by-step.
+**Messenger token setup** takes 3–5 minutes (Discord) and must happen *before* `init` — follow [master-guide §5.1](manual/master-guide_en.html) step-by-step, then §4.2 for the wizard and §5.2 for the invite.
 
 ### Upgrading from v0.5.x
 

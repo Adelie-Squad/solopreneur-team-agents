@@ -40,7 +40,7 @@ SoloSquad의 핵심 약속은 **"사용자가 코드를 직접 보지 않고도,
 | 2 | How It Works | 시스템 아키텍처 · 폴더 위계 · 메모리 모델 · 워크플로우 정의 |
 | 3 | Concept Glossary | `SKILL.md` · `KNOWLEDGE.md` · `CLAUDE.md` · `AGENTS.md` 비교 · 레이어별 파일 인벤토리 · 4채널 라우팅 |
 | 4 | Onboarding | 신규 사용자 / 기존 리포 마이그레이션 / 버전 업그레이드 3 갈래 |
-| 5 | Messenger Setup | Discord 8단계 토큰 워크스루 (Slack 절은 post-v1.0 참고용으로 유지) |
+| 5 | Messenger Setup | Discord 연결 — §5.1 Developer Portal 사전 준비(토큰 · Application ID · 본인 User ID), §5.2 초대 + 채널 자동 생성, §5.3 동작 검증 (Slack 절은 post-v1.0 참고용으로 유지) |
 | 6 | Usage | CLI 레퍼런스 · 일일 운영 · 첫 실행 체크리스트 · 자동 루틴 |
 | 7 | Glossary | 60+ 핵심 용어 사전 · 파일명 사전 · 약어 사전 (초심자 친화) |
 | 8 | Version Differences | v1.2.6 (npm 배포) vs 다음 릴리스 |
@@ -76,17 +76,22 @@ SoloSquad의 핵심 약속은 **"사용자가 코드를 직접 보지 않고도,
 
 ```bash
 # 1. 사전 준비 (최초 1회)
-brew install node git                             # macOS — Windows/Linux는 master-guide §4.2
+brew install node git                             # macOS, Node >=20 — Windows/Linux는 master-guide §4.2
 npm install -g @anthropic-ai/claude-code
 
-# 2. SoloSquad 설치
+# 2. init 전에 Discord 봇 준비 — master-guide §5.1 (브라우저 작업 3~5분)
+#    Application 생성 → Reset Token → Message Content Intent ON
+#    → Application ID 복사 → 본인 User ID 복사 (개발자 모드)
+#    뒤 두 개는 init이 자동 감지하지만, 실패할 때를 대비해 손에 쥐고 시작하세요.
+
+# 3. SoloSquad 설치
 npm install -g solosquad
 mkdir ~/solosquad-workspace && cd ~/solosquad-workspace
 solosquad init                                    # wizard가 Claude OAuth(Step 1.5) + Chief 이름 + Discord 토큰 + invite URL 자동 open 처리
 solosquad doctor                                  # 환경 점검
 solosquad doctor --discord                        # v1.2 — Discord 5-hop diagnostic (token / REST / bot_user_id / guild / channel)
 
-# 3. 봇 기동
+# 4. 봇 기동
 solosquad bot                                     # 포그라운드
 # 또는
 docker compose up -d --build                      # 백그라운드 + 자동 재시작 (워크스페이스 루트에서 — init이 compose 파일을 여기 복사)
@@ -94,7 +99,7 @@ docker compose up -d --build                      # 백그라운드 + 자동 재
 
 봇을 길드에 초대하면 **guildCreate onboarding embed** 가 system 채널에 표시됩니다. **Auto-create channels** 버튼을 누르면 `#command-<handle>` / `#works-<handle>` 자동 생성 + command 채널에서 Chief 첫 인사 → 메시지 한 번 보내면 Chief 가 답합니다.
 
-**메신저 토큰 셋업**은 Discord 기준 3~5분 정도 걸립니다. [`master-guide_ko.html` §5](manual/master-guide_ko.html)의 단계 절차를 따라가세요.
+**메신저 토큰 셋업**은 Discord 기준 3~5분 정도 걸리며 **`init` 보다 먼저** 끝내야 합니다 — [`master-guide_ko.html` §5.1](manual/master-guide_ko.html) 순서대로 값을 준비한 뒤, 마법사는 §4.2, 초대는 §5.2 를 보세요.
 
 ### 메신저 셋업이 핵심인 이유
 
