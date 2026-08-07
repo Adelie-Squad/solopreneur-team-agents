@@ -196,7 +196,7 @@ todo·노트는 그 별도 인프라 slot에서.
 
 #### 3.2.3 자율 goal-runner (장기 목표, 하루 이상)
 - **현재**: ✓ v0.4 — 2계층(goal.md + AGENTS.md) + cycle loop + 3단계 가드레일 + CONFIRMING + `goal verify`. CLI 7건
-- **plan**: `v0.4-autonomous-engine.md`, `v1.x-workflow-goal-routine-evolution.md` (예정)
+- **plan**: `v0.4-autonomous-engine.md`. (구 `v1.x-workflow-goal-routine-evolution.md` 는 2026-08-08 폐기 — v1.1 §0 으로 흡수됨)
 - **정의**: **하루를 넘는 장기 목표**. PM이 목표 달성을 위해 *워크플로우 + cron*을 조합해 자율 진행. 사용자가 중간에 워크플로우/cron을 추가/변경/생략 지시 가능
 - **기본 탑재 goal 5종** (박제): **PMF 검증 / GTM / A/B 테스트 / 포지셔닝 / 배포**
 - **모델 박제 (Q5)**: org당 *여러 goal* 가능. 단 **한 조직에서 동시 active goal은 1개** — 다른 goal은 paused/queued. `solosquad goal run <id>`는 active goal이 있으면 거부. 구현: `<org>/goals/.active-goal` 세마포어 (v1.x goal-runner 고도화)
@@ -210,7 +210,7 @@ todo·노트는 그 별도 인프라 slot에서.
 
 #### 3.2.5 워크플로우 메이커
 - **현재**: ✓ v0.5 — `_meta/workflow-maker` SKILL (CLARIFY→DRAFT→SANDBOX_PROMPT→AWAIT_CONFIRM→APPLIED) + paperclip budget cap + spec-gate → `goal.md` auto-emit. v0.6 trajectory + freq miner (제안만)
-- **plan**: `v0.5-workflow-maker.md`, `v0.6-default-workflow-tuning.md` §3, `v1.x-workflow-goal-routine-evolution.md` (예정)
+- **plan**: `v0.5-workflow-maker.md`, `v0.6-default-workflow-tuning.md` §3. (구 `v1.x-workflow-goal-routine-evolution.md` 는 2026-08-08 폐기)
 - **암묵지 → SKILL 1차 source 박제 (Q2 b)**: **사용자 명시 슬래시** — `/create <name>` 또는 PM 대화 중 자연어 "이거 SKILL로 저장해" 인식. 정확도 우선. v0.6 freq miner(반복 패턴 자동 감지)는 *backup* — 사용자가 명시 안 한 패턴은 *제안만* (자동 등록 안 함)
 - **2·3차 source (후속 슬롯)**: 외부 자료 import (Notion·Obsidian·MCP — v1.2 지식 온톨로지 정합) → goal-runner keep/discard 역추출 (장기)
 
@@ -297,7 +297,7 @@ todo·노트는 그 별도 인프라 slot에서.
 
 #### 3.3.3 실험 인프라 (Amplitude 패턴 차용)
 - **현재**: ◐/○ — `<org>/memory/experiments.jsonl` (v0.2.4)만 존재. 실험 등록·결과 추적·통계 분석 별도 인프라는 미설계
-- **plan**: `v1.x-workflow-goal-routine-evolution.md` §실험 인프라 (예정)
+- **plan**: `v1.1-multi-agent-team-architecture.md` §0 + `skills/experiment-design/`. (구 `v1.x-workflow-goal-routine-evolution.md` §6 은 2026-08-08 폐기 — Discord 전제 소멸)
 - **결정 박제 (Q7 a)**: **별도 인프라 신설**. `<org>/experiments/<id>/` 디렉토리 (manifest.yaml + variants + metric + duration + sample_target) + cron으로 결과 fetch + decision-gate. v0.4 goal-runner의 measurer 패턴 차용
 - **레퍼런스 — Amplitude AI agents** (사용자 지정): "Ask Amplitude" / "Compose" 등의 데이터 분석 자동화 agent 기술. 차용 패턴:
   - 자연어 → metric/segment 자동 query
@@ -583,13 +583,13 @@ todo·노트는 그 별도 인프라 slot에서.
 | **`v1.2.1`** | **메신저 thread 연속성** — referencedMessage chain + LRU cache + thread token budget guard. messageCreate 가 thread 메시지 수신 + thread→workflow_id reverse lookup 인프라 신설 (v1.2.6 의 작업 1개=thread 1개 모델에 *연속 대화*가 얹힘). Slack adapter 동일 슬롯 | (기획 미수 — `docs/prd/v1.2.1-messenger-thread-continuity.md` 예정) |
 | **`v1.x`** (별도 slot) | **일정 관리 + 메모** — n잡 사용자 시간·기억 관리. 캘린더 통합·todo·노트 인프라. (당초 v1.3 → 1.3.x가 primitive 내재화 라인으로 전개돼 분리, 2026-06-25 §2.1) `docs/prd/v1.x-schedule-memo.md` 예정 | (기획 미수) |
 | **`v1.4.x`** (우산 교체, 2026-07-12) | **Research Workflow** — 기능화 *前* 가설을 자율로 세우고 실험·검증하는 연구 워크플로우를 내장. 확산→수렴 가설수립·실험 사이클·blind 백테스트·수치 eval·Track2 검증·논문/리포트 산출. goal 무인 8h+ 장기실행. 산출물은 org-level `reports/`. **dogfood: 가상 시장 수요검증 시뮬 8-사이클 연구로 실증**(그 *기능화*는 v1.9.0). *(출시된 v1.4.0~1.4.2 = 1.3.x 안정화 tail 재분류)* | 우산 `docs/prd/v1.4.0_research-workflow.md` + 구현 `docs/prd/v1.4.3_research-workflow-implementation.md` |
-| **`v1.5.x`** (플랫폼 진화 우산) | **Orchestration & Harness Platform** — 단일 하네스·단일 세션 가정을 넘는 재설계. **Track 0**(게이트): 언어 ADR(TS/폴리글롯/Py) + **Codex CLI 백엔드 추상화**. **A** 오케스트레이션 코어(memory·router·context·handoff·cwd=S-6·다중세션/스레드=S-4·역할분리=S-5·회전=S-2b). **B** 토폴로지 프레임워크. **C** 하네스(hook·가드레일). **D** 도구/시크릿(MCP·key·인증·CI/CD). **E** 커스텀(구 M1~M4, ↓). **F** cron 자산(S-7)·GC(S-3b). ⚠️ **격변 가능(TS↔Py)·major급** — 언어/스케일 결정 선행. | `docs/prd/v1.5.0_orchestration-and-harness-platform.md` |
-| **`v1.6.0`** | **클라우드 배포 + health 알림** — Railway 기본 승격·원클릭 템플릿·봇 세션 watchdog | `docs/prd/v1.6.0_docker-cloud-deploy-and-health-notify.md` |
-| **`v1.9.0`** | **가상 시장 수요검증 시뮬레이션 *기능*** — 합성 페르소나 가상시장으로 0-to-1 유료 전환을 사전 스크리닝(캘리브레이션-증강). v1.4.x research로 유효성 검증 후 착수. 연구 결론: raw NO-GO, 캘리브레이션 부분 회복(~0.64) | `docs/prd/v1.9.0_virtual-market-demand-simulation.md` |
-| `v1.x` (cascade-shifted) | **구 v1.1 대시보드 상호작용** (web 대시보드 클라이언트·인박스, 별도 리포 `solopreneur-dashboard`+`solopreneur-api`) | `docs/prd/v1.x-dashboard-interaction.md` |
-| `v1.x` (cascade-shifted) | **구 v1.2 지식·암묵지 온톨로지 + MCP 외부 연결** (Notion·Obsidian·API·타 에이전트) | `docs/prd/v1.x-knowledge-ontology.md` |
-| `v1.x` (별도) | **LLM backend 추상화** — Claude 단일 호출에서 multi-backend 로 | `docs/prd/v1.x-llm-backend-abstraction.md` |
-| `v1.x` (archived) | 워크플로우 / goal / cron *고도화* — Q1~Q7 ideation 7건 완전 흡수 후 본 슬롯은 *역사적 reference* 로 격하 (v1.1 plan §0 박제) | `docs/prd/v1.x-workflow-goal-routine-evolution.md` |
+| **`v2.0.0`** (구 `v1.5.x` 우산) | **Orchestration & Harness Platform** — 단일 하네스·단일 세션 가정을 넘는 재설계. **Track 0**(게이트): 언어 ADR(TS/폴리글롯/Py) + **Codex CLI 백엔드 추상화**. **A** 오케스트레이션 코어(memory·router·context·handoff·cwd=S-6·다중세션/스레드=S-4·역할분리=S-5·회전=S-2b). **B** 토폴로지 프레임워크. **C** 하네스(hook·가드레일). **D** 도구/시크릿(MCP·key·인증·CI/CD). **E** 커스텀(구 M1~M4, ↓). **F** cron 자산(S-7)·GC(S-3b). ⚠️ **격변 가능(TS↔Py)·major급** — 언어/스케일 결정 선행. | `docs/prd/v2.0.0_orchestration-and-harness-platform.md` |
+| **`v2.1.0`** (구 `v1.6.0`) | **클라우드 배포 + health 알림** — Railway 기본 승격·원클릭 템플릿·봇 세션 watchdog | `docs/prd/v2.1.0_docker-cloud-deploy-and-health-notify.md` |
+| **`v2.4.0`** (구 `v1.9.0`) | **가상 시장 수요검증 시뮬레이션 *기능*** — 합성 페르소나 가상시장으로 0-to-1 유료 전환을 사전 스크리닝(캘리브레이션-증강). v1.4.x research로 유효성 검증 후 착수. 연구 결론: raw NO-GO, 캘리브레이션 부분 회복(~0.64) | `docs/prd/v2.4.0_virtual-market-demand-simulation.md` |
+| `v2.x` (cascade-shifted) | **구 v1.1 대시보드 상호작용** (web 대시보드 클라이언트·인박스, 별도 리포 `solopreneur-dashboard`+`solopreneur-api`) | `docs/prd/v2.x-dashboard-interaction.md` |
+| `v2.x` (cascade-shifted) | **구 v1.2 지식·암묵지 온톨로지 + MCP 외부 연결** (Notion·Obsidian·API·타 에이전트) | `docs/prd/v2.x-knowledge-ontology.md` |
+| ~~`v1.x` (별도)~~ | **LLM backend 추상화** — **2026-08-08 폐기.** 10 차단점은 ideation §C1 이 하네스 5-메서드로 흡수. 원문은 git 히스토리(⚠️ Codex 서술에 사실오류) |
+| ~~`v1.x` (archived)~~ | 워크플로우 / goal / cron *고도화* — **2026-08-08 폐기.** Q1~Q7 은 `v1.1-multi-agent-team-architecture.md` §0 으로 완전 흡수돼 있었고, 미구현 잔여분은 Discord 전제라 소멸 |
 
 ### 5.4 재배치 사유 (2026-05-12)
 
@@ -600,7 +600,7 @@ todo·노트는 그 별도 인프라 slot에서.
 - **v0.6**은 두 트랙으로 분리. (a) 시간 의존 — v0.3~v0.5 실전 데이터로 디폴트 워크플로우 4종 튜닝 + 핸드오프 3변형 표준화(회고, v0.5 출시 4-6주 뒤). (b) 시간 무관 인프라 — Team=Domain 폴더 재편·Organization Layer specialization(`<org>/agent-profile.yaml`·`core/`·`domain/`)·Workspace Knowledge Layer(`.solosquad/knowledge/`)·FTS5 cold archive·trajectory→skill 제안. 인프라 트랙은 v0.5 출시 즉시 착수 가능. 2개 트랙 함께 진행하여 v1.0 정식 출시 전 워크스페이스 토폴로지를 안정화.
 - **v1.1 Multi-Agent Team Architecture** *(2026-05-24 cascade)* — *작업 흐름 자체의 재설계*. v1.0.x patch 시리즈와 *narrative 단절*. Hermes V2 5-layer 위 SoloSquad 25 SKILL 재배치 + Main+Specialist 분리 + Team Knowledge 명시화. Harness §7.5 4 채택 권고 흡수. **L2~L5 내부 아키텍처만** — L1(메신저)은 v1.2 로 분리해 표면 폭증 회피.
 - **v1.2 메신저 연결 (Discord 우선)** *(2026-05-24 cascade)* — v1.1 L1 위임분. Channel topology · 9-hop diagnostic · Forum Channel · Echo guard. v1.0.4 G+H+P + L+M+N+O Best Practice 본 슬롯에 흡수. Slack 동등 fix 는 v1.2.x patch.
-- **구 v1.1 대시보드 / 구 v1.2 온톨로지 → v1.x cascade-shifted** *(2026-05-24)* — 1인 dogfooder 단계에서 *내부 아키텍처 재설계가 dashboard·ontology 보다 leading indicator 가까움* (v1.x ideation Q1 b 박제). 두 슬롯은 v1.x slot 으로 이동 — 파일은 `v1.x-dashboard-interaction.md` / `v1.x-knowledge-ontology.md` 로 rename 완료.
+- **구 v1.1 대시보드 / 구 v1.2 온톨로지 → v1.x cascade-shifted** *(2026-05-24)* — 1인 dogfooder 단계에서 *내부 아키텍처 재설계가 dashboard·ontology 보다 leading indicator 가까움* (v1.x ideation Q1 b 박제). 두 슬롯은 v1.x slot 으로 이동 — 파일은 `v2.x-dashboard-interaction.md` / `v2.x-knowledge-ontology.md` 로 rename 완료.
 
 ### 5.5 npm 버전 vs 문서 라벨
 
@@ -615,7 +615,7 @@ todo·노트는 그 별도 인프라 slot에서.
 
 ## 6. 결정 로그 (주요)
 
-- **2026-07-13 (v1.5.x 대폭 재범위 — 세션 오케스트레이션 → Orchestration & Harness Platform)** — 사용자가 1.5.x에 Codex CLI 지원·도구/시크릿(MCP·key·인증·CI/CD)·다중세션(디스코드 스레드)·토폴로지 프레임워크·오케스트레이션(memory/router/context/handoff/cwd)·하네스(hook·가드레일)를 추가하며 **"격변 가능(TS↔Py 전환/병행)"** 을 명시. 구 세션 오케스트레이션(S-2b~S-7)+커스텀(M1~M4)을 **흡수·일반화**하고 위 축을 더한 **플랫폼 진화 우산**으로 재작성. **Track 0(언어 ADR + Codex 백엔드 추상화)** 이 전 트랙 게이트. 신구 매핑: cwd=S-6·다중세션=S-4·역할분리=S-5·회전=S-2b. major급이라 **2.0 승격 vs 1.5.x 다-minor** 는 OQ. PRD 리네임 `v1.5.0_session-orchestration-and-customization.md` → `v1.5.0_orchestration-and-harness-platform.md`. 영향: 본 entry + INDEX + §5.3 표 + PRD.
+- **2026-07-13 (v1.5.x 대폭 재범위 — 세션 오케스트레이션 → Orchestration & Harness Platform)** — 사용자가 1.5.x에 Codex CLI 지원·도구/시크릿(MCP·key·인증·CI/CD)·다중세션(디스코드 스레드)·토폴로지 프레임워크·오케스트레이션(memory/router/context/handoff/cwd)·하네스(hook·가드레일)를 추가하며 **"격변 가능(TS↔Py 전환/병행)"** 을 명시. 구 세션 오케스트레이션(S-2b~S-7)+커스텀(M1~M4)을 **흡수·일반화**하고 위 축을 더한 **플랫폼 진화 우산**으로 재작성. **Track 0(언어 ADR + Codex 백엔드 추상화)** 이 전 트랙 게이트. 신구 매핑: cwd=S-6·다중세션=S-4·역할분리=S-5·회전=S-2b. major급이라 **2.0 승격 vs 1.5.x 다-minor** 는 OQ. PRD 리네임 `v1.5.0_session-orchestration-and-customization.md` → `v2.0.0_orchestration-and-harness-platform.md`. 영향: 본 entry + INDEX + §5.3 표 + PRD.
 
 - **2026-07-12 (v1.4.x 재정의 — 시뮬레이션 *연구* → Research Workflow *역량*)** — 8-사이클 자율 연구(가상 시장 수요검증 시뮬)를 실제로 완주한 회고에서, 1.4.x 우산을 특정 *연구 주제*가 아니라 **"연구를 자율로 수행하는 역량(research workflow)"** 으로 일반화. **① 1.4.x = Research Workflow** — 기능화 前 유효성 검증 계층: 확산→수렴 가설수립·실험 사이클·blind 백테스트·수치 eval·Track2 검증·논문/리포트, goal 무인 8h+. 그 시뮬 연구는 첫 dogfood. 우산 `v1.4.0_research-workflow.md` + 구현 `v1.4.3_research-workflow-implementation.md`(구 `v1.4.0_virtual-market-demand-simulation`·`v1.4.3_simulation-core-payment-and-backtest` 리네임·삭제). **② research = 워크플로우** → 별도 매니저 없이 **workflow-manager가 관리**(내장 3번째 메인 워크플로우). 템플릿·백테스트 예시는 워크플로우 자산으로 내장, `docs/research/`엔 실제 주제 dir만. **③ reports = org-level 배포 산출물 공간** — `docs`는 `package.json.files`로 배포 안 됨 → `market-research` 등 산출을 `<org>/docs/reports/` → **`<org>/reports/`** 로 이전(마이그레이션 `1.4.2-to-1.4.3`), `docs/reports/INDEX.md` 제거. **④ 로드맵:** **v1.6.0 = 클라우드 배포**(구 v1.4.5 정착), **v1.8 = 가상 시장 수요검증 시뮬레이션 *기능***(캘리브레이션-증강; 연구 결론 raw NO-GO 반영, `v1.8_virtual-market-demand-simulation.md`). 영향 docs: 본 entry + `docs/prd/INDEX.md` + §5.3 표 + 신규 3 PRD.
 

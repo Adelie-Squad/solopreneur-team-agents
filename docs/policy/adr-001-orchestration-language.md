@@ -10,6 +10,14 @@
 > **개정 `2026-08-07`(2차)** — §1·§3.4·§5 의 표현을 정정했다. 초판은 "Python 단일 언어"를
 > **최종 원칙**처럼 적었으나, 사용자 확인 결과 **목적지는 폴리글랏**이다(메신저 재도입 ·
 > 웹사이트 · 대시보드가 계획에 있음). 결론은 그대로이고 **적용 범위가 "v2.0 단계"로 한정**된다.
+>
+> **개정 `2026-08-08`(3차)** — **§3.5 동시성 모델**을 신설했다(결정 14 — ⓒ 계층 분리).
+> §7 의 미기록 사항이던 항목이 결정되어 본문으로 올라왔다. 언어 결정 자체는 불변이며,
+> 이 개정은 **§1 따름정리의 경계에 조건 하나를 추가**한다.
+>
+> **개정 `2026-08-08`(4차)** — **릴리스 번호 = semver 계보 유지**(결정 15). PRD 를
+> `v1.N` → `v2.(N−5)` 로 재번호했고, §7 의 *"파일명 `v2.0` 은 잠정"* 경고가 해제됐다.
+> 이로써 미결 M3 가 닫히고, M2(npm deprecate 문구)의 선행 조건도 사라졌다.
 
 ---
 
@@ -29,12 +37,15 @@
 > **따름정리 — 경계는 지금 긋는다.** 목적지가 2언어이므로 Python 코어와 표면 사이의
 > **JSON 계약 경계**는 나중에 잘라내는 것이 아니라 **`[1] 계약` 단계에서 함께 설계**한다.
 > 초판은 이 경계를 §5 의 *재도입 조건* 으로만 적었으나, 목적지가 확정된 이상 **설계 요구사항**이다.
+>
+> **이 경계에는 조건이 하나 더 붙는다(§3.5)** — `asyncio` 는 `harness/` 안쪽에만 존재하고,
+> 코어로 내보내는 얼굴은 **동기 함수**다. 두 선은 같은 자리에 그어진다.
 
 ---
 
 ## 2. 배경 — 왜 이 ADR 이 뒤집힌 결론을 담는가
 
-`docs/prd/v1.5.0_orchestration-and-harness-platform.md`(rev4) 와
+`docs/prd/v2.0.0_orchestration-and-harness-platform.md`(rev4) 와
 `docs/ideation/260803-solosquad-architecture-redesign.md` §A1 은 **TS 유지**를 권고했다.
 그 권고는 기각되지 않았다 — **전제가 바뀌어 무효화**됐다.
 
@@ -87,7 +98,7 @@ rev4 §0.1 의 논증 구조는 다음과 같았다.
 | `analyze/` | 2,413 | eval 채점 · trigger-rate · A/B · train/val split · refine 게이트 · originality |
 | `cron/` | 2,584 | 주기 실행 · freq-keyword-miner · trajectory-extractor |
 | `engine/` | 3,578 | goal 실행 루프 · evaluator · tracker |
-| (예정) VMS 시뮬레이션 | — | `docs/prd/v1.9.0_virtual-market-demand-simulation.md` |
+| (예정) VMS 시뮬레이션 | — | `docs/prd/v2.4.0_virtual-market-demand-simulation.md` |
 
 rev4 §0.2 는 Py 생태계 실수요를 *"정확히 한 곳 — v1.9.0 VMS, 현 마일스톤에서 4단계 뒤"* 로 판정했으나,
 그 판정은 **VMS 만을 셌다.** 위 표대로 채점·마이닝·평가 산술은 이미 8.5k LOC 규모로 존재하며,
@@ -117,6 +128,43 @@ TS 잔존부가 0 이므로(§0.0.4) 실사용 언어가 1개인 상태로 출�
 **Rust·Go 등 3번째 언어는 금지.** 이 금지만이 무기한이다.
 TS 는 §5 의 로드맵대로 **돌아온다.**
 
+### 3.5 동시성 모델 — 계층 분리 (개정 3차, 결정 14)
+
+**`asyncio` 는 `harness/` 내부에만 둔다. 코어에 노출되는 함수는 동기 함수다.**
+
+```python
+# harness/ 내부
+async def _spawn_all(tasks):
+    return await asyncio.gather(*[_spawn(t) for t in tasks])
+
+# 코어로 내보내는 얼굴
+def spawn_all(tasks):
+    return asyncio.run(_spawn_all(tasks))
+```
+
+**이 항목이 ADR 에 있는 이유** — 동시성은 보통 구현 세부지만, Python 에서는 **함수 시그니처의
+성질**이라 한 층의 선택이 위로 전파된다(`await` 는 `async` 안에서만 쓸 수 있다 —
+*function coloring*). 따라서 이것은 §1 따름정리의 **경계선이 어디를 지나는가**에 대한 결정이며,
+그 층위에서 권위 문서에 박제한다.
+
+**기각된 두 안:**
+
+| 안 | 기각 사유 |
+|---|---|
+| **`asyncio` 전면** | coloring 이 CLI 최상단까지 번진다. 확정 스택 중 `sqlite3`·`PyYAML`·`questionary` 가 동기 전용이라 이벤트 루프를 막으며, 우회하려면 결국 스레드를 다시 불러온다 |
+| **동기 + 스레드풀 단독** | 현 규모(동시 세션 수십 개)에는 충분하나, **§5 의 대시보드가 합류하는 시점에 하네스를 async 로 고치게 되고** 그때 coloring 이 코어로 소급 전파된다. 미래 비용을 현재의 편의와 맞바꾸는 선택 |
+
+**채택 근거** — 우리 대기는 CPU 가 아니라 **서브프로세스 I/O** 이므로 동시성 자체는 반드시 필요하고,
+동시에 §5 로 **표면에 async 가 들어올 것이 확정**돼 있다. 계층 분리는 async 를 필요한 곳에만 두어
+두 사실을 모두 만족하며, 대시보드 합류 시 **코어를 수정하지 않는다.**
+
+**대가는 규율이다.** `async` 가 `harness/` 밖으로 새어나가면 그 순간 "전면 async" 가 되고
+coloring 이 시작된다. 이 선은 §1 따름정리의 JSON 경계와 **같은 자리**이므로 `[1] 계약` 에서
+함께 명세한다.
+
+**재검토 트리거** — 동시 활성 세션이 **수백 개** 규모가 되거나 코어 자체가 상시 이벤트 루프를
+요구하는 기능이 생기면 전면 async 를 다시 연다. 그 전까지는 §6 에 준해 재론하지 않는다.
+
 ---
 
 ## 4. 기각된 대안
@@ -140,11 +188,11 @@ TypeScript 는 **금지도 보류도 아니다 — 순서상 뒤에 있을 뿐�
 |---|---|
 | 메신저(Discord/Slack) 재도입 | 결정 4 — "재도입 여부는 나중에 결정" → **여부는 확정, 시점만 미정** |
 | 웹사이트 | 사업계획 |
-| 웹 대시보드 | `docs/prd/v1.x-dashboard-interaction.md` |
+| 웹 대시보드 | `docs/prd/v2.x-dashboard-interaction.md` |
 
 **재도입 시점의 요건 3가지** (조건이 아니라 그때 지켜야 할 형태):
 
-1. 클라우드 배포(현 `v1.6.0` 계획)가 착수되어, **Node 전제조건을 배포자만 지면 되는** 형태일 것.
+1. 클라우드 배포(현 `v2.1.0` 계획)가 착수되어, **Node 전제조건을 배포자만 지면 되는** 형태일 것.
 2. 대상이 **플랫폼 실시간 I/O · 어댑터 · UI 렌더**로 한정될 것 (OpenTag 분할 원칙).
 3. Python 코어와의 경계가 **JSON 계약으로 명시**되어 있을 것 (로컬 stdio ↔ HTTP 승격 가능한 형태).
    → **이 3번은 v2.0 `[1] 계약` 단계에서 미리 만든다**(§1 따름정리). 재도입 시점에
@@ -177,10 +225,14 @@ TypeScript 는 **금지도 보류도 아니다 — 순서상 뒤에 있을 뿐�
 
 | 문서 | 관계 |
 |---|---|
-| `docs/prd/v2.0_python-rewrite.md` (미작성) | 이 결정의 실행 계획 — 새 아키텍처 · 재작성 절차 · 분할선. ⚠️ **파일명의 `v2.0` 은 잠정** — 릴리스 번호 체계가 미결(M3)이며, `0.1.0` 재시작을 고르면 이 이름도 바뀐다 |
+| **`docs/prd/v2.0.0_orchestration-and-harness-platform.md`** | **이 결정의 실행 계획** — 새 아키텍처 · 재작성 절차 · 분할선. 구 `v1.5.0` 을 재번호한 파일이며(결정 15), 그 rev4 본문은 Track 0 이 이 ADR 로 종결되어 **초과 대체(superseded)** 상태다. **재작성 대기** |
 | `docs/ideation/260803-solosquad-architecture-redesign.md` | 설계 안건 18건의 출처. §A1·§A2·§T4 는 이 ADR 로 **갱신됨**, 나머지 안건(B·C·D)은 **유효** |
-| `docs/prd/v1.5.0_orchestration-and-harness-platform.md` (rev4) | **초과 대체(superseded)** — Track 0 언어 게이트는 이 ADR 로 종결. 남은 Track A~E 내용은 v2.0 PRD 로 흡수 |
-| `docs/prd/v1.x-llm-backend-abstraction.md` | 10 차단점 = v2.0 하네스 계약의 원천. **유효** |
+| ~~`docs/prd/v1.x-llm-backend-abstraction.md`~~ | **폐기 (2026-08-08).** 10 차단점은 ideation §C1 이 하네스 5-메서드로 흡수 완료 — 그쪽이 정본이다. 원문은 git 히스토리. ⚠️ 폐기 사유 하나는 **사실오류**였다는 점: §2.1 *"Codex 는 session 개념 없음"* 은 [[260605-ochestrator-session]](rollout JSONL 영속 · `codex resume` · 자동 compaction)으로 반증됐고, ideation §C2 가 이를 판정했다 |
+| ~~`docs/prd/v1.x-workflow-goal-routine-evolution.md`~~ | **폐기 (2026-08-08).** Q1~Q7 은 `v1.1-multi-agent-team-architecture.md` §0 으로 완전 흡수(architecture.md §13.10 이 이미 *archived* 로 격하). 미구현 잔여분은 Discord 메신저 전제라 결정 4 로 소멸 |
+
+> **`v2.0_python-rewrite.md` 는 만들지 않는다.** 초판이 예정했던 그 파일의 자리를
+> 위 `v2.0.0_orchestration-and-harness-platform.md` 가 차지한다 — 별도 파일을 신설하면
+> 같은 릴리스에 PRD 가 둘이 된다.
 
 ### 미기록 사항 (이 ADR 범위 밖, v2.0 PRD 에서 결정)
 
@@ -188,5 +240,7 @@ TypeScript 는 **금지도 보류도 아니다 — 순서상 뒤에 있을 뿐�
   ⚠️ §1 의 "새로 설치"는 **프로그램 코드**에 대한 결정이며, 사용자 폴더에 남는 데이터는
   별개 문제다 — 폐기 / 그대로 읽기 / 1회 변환 중 미정 (ideation §M1)
 - `curl`/`irm` 부트스트랩 및 사용 측정 도구의 설계 (ideation §M5)
-- **동시성 모델** — 하네스가 서브프로세스를 다루는 방식(asyncio 전면 vs 동기+스레드풀 vs 계층 분리).
-  `[1] 계약` 설계 전에 닫혀야 한다 (ideation §M4-3)
+- 토크나이저 도입 여부(`tiktoken` — 한국어 `문자수/4` 과소평가 보정). `[2] 컨텍스트` 이후
+  (ideation §M4 잔여)
+
+> ~~**동시성 모델**~~ — 2026-08-08 **결정되어 §3.5 로 이동**했다 (ideation §M4-2 · 결정 14).
