@@ -1449,7 +1449,7 @@ templates/
 - ~~v1.x **LLM backend 추상화**~~ — **2026-08-08 폐기.** 10 차단점은 `docs/ideation/260803-solosquad-architecture-redesign.md` §C1 이 하네스 5-메서드로 흡수
 - **v1.3** 일정 관리 + 메모 (n잡 사용자) — 예정
 
-**v1.x-workflow-goal-routine-evolution.md** — v1.1 plan §0 박제 표로 §1~§6 *완전 흡수* → *역사적 reference* 로 격하됐고, **2026-08-08 폐기**됐다. 미구현 잔여분(goal 중간개입 · `/create` · 실험 CLI)은 Discord 메신저 전제라 ADR-001 결정 4 로 소멸. 원문은 git 히스토리.
+**v1.x-workflow-goal-routine-evolution.md** — v1.1 plan §0 박제 표로 §1~§6 *완전 흡수* → *역사적 reference* 로 격하됐고, **2026-08-08 폐기**됐다. 미구현 잔여분(goal 중간개입 · `/create` · 실험 CLI)은 Discord 메신저 전제라 결정 4 로 소멸. 원문은 git 히스토리. (⚠️ 메신저는 결정 16 으로 `v2.1.0` 재도입 예정 — 다만 이 3건은 신규 설계 대상이지 부활 대상이 아니다)
 
 자세히: `docs/prd/v1.1-multi-agent-team-architecture.md`, `docs/prd/v1.2-messenger-connection-discord-first.md`, `docs/prd/v2.x-*.md`
 

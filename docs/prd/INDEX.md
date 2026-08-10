@@ -54,15 +54,19 @@
 | [v1.4.2_start-cron-blocking-hotfix.md](v1.4.2_start-cron-blocking-hotfix.md) | 출시분 — 1.3.x 안정화 tail(재분류) |
 | [v1.4.0_research-workflow.md](v1.4.0_research-workflow.md) | **1.4.x 우산** — 자율 가설검증 연구 워크플로우(기능화 前 유효성 검증 계층) |
 | [v1.4.3_research-workflow-implementation.md](v1.4.3_research-workflow-implementation.md) | research 내장 워크플로우 + 템플릿/예시 + goal 8h+ 무인 + reports→org 이전 |
-| [v2.0.0_orchestration-and-harness-platform.md](v2.0.0_orchestration-and-harness-platform.md) | **2.0.0 우산** — Python 전면 재작성의 실행 계획(ADR-001). 오케스트레이션·하네스 플랫폼 + 기획 primitive 개선. ⚠️ 구 `v1.5.0`, rev4 본문은 ADR-001 로 초과 대체됨 |
+| [v2.0.0_orchestration-and-harness-platform.md](v2.0.0_orchestration-and-harness-platform.md) | **2.0.0 우산** — Python 전면 재작성의 실행 계획. 오케스트레이션·하네스 플랫폼 + 기획 primitive 개선. ⚠️ 구 `v1.5.0`, rev4 본문은 **결정 1(Python 전면 재작성)로 초과 대체**됨 — 정본은 `ideation/260803-*` §0.0 |
 | [v2.1.0_docker-cloud-deploy-and-health-notify.md](v2.1.0_docker-cloud-deploy-and-health-notify.md) | **2.1.0** — Railway 클라우드 배포 + **메신저(Discord/Slack) 재도입**(결정 16) + 봇 health 알림. 구 `v1.6.0` |
 | [v2.4.0_virtual-market-demand-simulation.md](v2.4.0_virtual-market-demand-simulation.md) | **가상 시장 수요검증 시뮬레이션 *기능*** — 캘리브레이션-증강 스크리닝(연구 결론: raw NO-GO). 구 `v1.9.0` |
 | [v2.x-dashboard-interaction.md](v2.x-dashboard-interaction.md) | 구 `v1.x` |
 | [v2.x-knowledge-ontology.md](v2.x-knowledge-ontology.md) | 구 `v1.x` |
 
-> **2026-08-08 재번호 — `v1.N` → `v2.(N−5)`.** ADR-001(Python 전면 재작성)로 다음 릴리스가
+> **2026-08-08 재번호 — `v1.N` → `v2.(N−5)`.** 결정 1(Python 전면 재작성)로 다음 릴리스가
 > major 격변이 되어 1.x 잔여 슬롯을 2.x 로 옮겼다. 미결 M3(릴리스 번호 체계)는 이로써
 > **semver 계보 유지**로 종결 — `0.1.0` 재시작·날짜 기반은 기각.
+>
+> **결정의 정본은 `docs/ideation/260803-solosquad-architecture-redesign.md` §0.0** (결정 1~17).
+> `docs/policy/adr-001-orchestration-language.md` 은 🧊 **동결**됐고(결정 17, 2026-08-10)
+> **설계 확정 후 발행**한다 — 그때까지 인용하지 말 것.
 >
 > **폐기 2건** (2026-08-08, 내용은 git 히스토리):
 > - `v1.x-llm-backend-abstraction.md` — 10 차단점은 ideation §C1 이 하네스 5-메서드로
