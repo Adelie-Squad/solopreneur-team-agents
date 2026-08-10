@@ -584,7 +584,7 @@ todo·노트는 그 별도 인프라 slot에서.
 | **`v1.x`** (별도 slot) | **일정 관리 + 메모** — n잡 사용자 시간·기억 관리. 캘린더 통합·todo·노트 인프라. (당초 v1.3 → 1.3.x가 primitive 내재화 라인으로 전개돼 분리, 2026-06-25 §2.1) `docs/prd/v1.x-schedule-memo.md` 예정 | (기획 미수) |
 | **`v1.4.x`** (우산 교체, 2026-07-12) | **Research Workflow** — 기능화 *前* 가설을 자율로 세우고 실험·검증하는 연구 워크플로우를 내장. 확산→수렴 가설수립·실험 사이클·blind 백테스트·수치 eval·Track2 검증·논문/리포트 산출. goal 무인 8h+ 장기실행. 산출물은 org-level `reports/`. **dogfood: 가상 시장 수요검증 시뮬 8-사이클 연구로 실증**(그 *기능화*는 v1.9.0). *(출시된 v1.4.0~1.4.2 = 1.3.x 안정화 tail 재분류)* | 우산 `docs/prd/v1.4.0_research-workflow.md` + 구현 `docs/prd/v1.4.3_research-workflow-implementation.md` |
 | **`v2.0.0`** (구 `v1.5.x` 우산) | **Orchestration & Harness Platform** — 단일 하네스·단일 세션 가정을 넘는 재설계. **Track 0**(게이트): 언어 ADR(TS/폴리글롯/Py) + **Codex CLI 백엔드 추상화**. **A** 오케스트레이션 코어(memory·router·context·handoff·cwd=S-6·다중세션/스레드=S-4·역할분리=S-5·회전=S-2b). **B** 토폴로지 프레임워크. **C** 하네스(hook·가드레일). **D** 도구/시크릿(MCP·key·인증·CI/CD). **E** 커스텀(구 M1~M4, ↓). **F** cron 자산(S-7)·GC(S-3b). ⚠️ **격변 가능(TS↔Py)·major급** — 언어/스케일 결정 선행. | `docs/prd/v2.0.0_orchestration-and-harness-platform.md` |
-| **`v2.1.0`** (구 `v1.6.0`) | **클라우드 배포 + health 알림** — Railway 기본 승격·원클릭 템플릿·봇 세션 watchdog | `docs/prd/v2.1.0_docker-cloud-deploy-and-health-notify.md` |
+| **`v2.1.0`** (구 `v1.6.0`) | **클라우드 배포 + 메신저 복귀 + health 알림** — Railway 기본 승격·원클릭 템플릿·봇 세션 watchdog. **🆕 2026-08-10 결정 16 — v2.0 에서 제거한 Discord/Slack 메신저를 이 릴리스에서 *동반* 재도입.** health 알림의 도착지가 메신저이고, 클라우드 배포가 곧 "Node 전제조건을 배포자만 지는" 형태를 만드는 작업이라 두 작업이 서로의 전제다 (ADR-001 §5) | `docs/prd/v2.1.0_docker-cloud-deploy-and-health-notify.md` |
 | **`v2.4.0`** (구 `v1.9.0`) | **가상 시장 수요검증 시뮬레이션 *기능*** — 합성 페르소나 가상시장으로 0-to-1 유료 전환을 사전 스크리닝(캘리브레이션-증강). v1.4.x research로 유효성 검증 후 착수. 연구 결론: raw NO-GO, 캘리브레이션 부분 회복(~0.64) | `docs/prd/v2.4.0_virtual-market-demand-simulation.md` |
 | `v2.x` (cascade-shifted) | **구 v1.1 대시보드 상호작용** (web 대시보드 클라이언트·인박스, 별도 리포 `solopreneur-dashboard`+`solopreneur-api`) | `docs/prd/v2.x-dashboard-interaction.md` |
 | `v2.x` (cascade-shifted) | **구 v1.2 지식·암묵지 온톨로지 + MCP 외부 연결** (Notion·Obsidian·API·타 에이전트) | `docs/prd/v2.x-knowledge-ontology.md` |
@@ -614,6 +614,8 @@ todo·노트는 그 별도 인프라 slot에서.
 ---
 
 ## 6. 결정 로그 (주요)
+
+- **2026-08-10 (결정 16 — 메신저 재도입 시점 = `v2.1.0` 동반)** — ADR-001 결정 4 로 `v2.0` 에서 제거되는 Discord/Slack 계층의 **복귀 시점이 확정**됐다. "클라우드 배포 완료 후 별도 슬롯"이 아니라 **`v2.1.0` 안에서 클라우드 배포와 함께 개발**한다. 근거 2가지: ⑴ ADR-001 §5 재도입 요건 1이 *"클라우드 배포가 착수되어 Node 전제조건을 배포자만 지는 형태일 것"* 인데 **그 형태를 만드는 작업이 곧 v2.1.0** 이므로 조건과 재도입을 분리할 이유가 없다. ⑵ `v2.1.0` 조각 B(**봇 세션 health → 알림**)의 도착지가 메신저라, 메신저 없이 배포만 하면 그 조각이 공중에 뜨거나 임시 표면을 하나 더 만들게 된다. **효과:** 미결 M6 의 "시점"이 닫히고 **언어 1건만 잔여**(ADR-001 §5-2 원칙으로 v2.1.0 착수 시 판단). 미결 M7(사업 문서 정합)의 처방도 바뀐다 — **2트랙 저니는 폐기가 아니라 연기**이므로 문서에서 삭제할 게 아니라 *"v2.0=터미널 단일 / v2.1.0=2트랙 완성"* 시제 표기로 고친다. 영향: 본 entry + §5.3 표 + `docs/prd/INDEX.md` + ADR-001(§1·§5·§6-4, 개정 5차) + v2.1.0 PRD 헤더 + ideation §0.0.1·M6·M7.
 
 - **2026-07-13 (v1.5.x 대폭 재범위 — 세션 오케스트레이션 → Orchestration & Harness Platform)** — 사용자가 1.5.x에 Codex CLI 지원·도구/시크릿(MCP·key·인증·CI/CD)·다중세션(디스코드 스레드)·토폴로지 프레임워크·오케스트레이션(memory/router/context/handoff/cwd)·하네스(hook·가드레일)를 추가하며 **"격변 가능(TS↔Py 전환/병행)"** 을 명시. 구 세션 오케스트레이션(S-2b~S-7)+커스텀(M1~M4)을 **흡수·일반화**하고 위 축을 더한 **플랫폼 진화 우산**으로 재작성. **Track 0(언어 ADR + Codex 백엔드 추상화)** 이 전 트랙 게이트. 신구 매핑: cwd=S-6·다중세션=S-4·역할분리=S-5·회전=S-2b. major급이라 **2.0 승격 vs 1.5.x 다-minor** 는 OQ. PRD 리네임 `v1.5.0_session-orchestration-and-customization.md` → `v2.0.0_orchestration-and-harness-platform.md`. 영향: 본 entry + INDEX + §5.3 표 + PRD.
 

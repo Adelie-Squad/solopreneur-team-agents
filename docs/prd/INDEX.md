@@ -55,7 +55,7 @@
 | [v1.4.0_research-workflow.md](v1.4.0_research-workflow.md) | **1.4.x 우산** — 자율 가설검증 연구 워크플로우(기능화 前 유효성 검증 계층) |
 | [v1.4.3_research-workflow-implementation.md](v1.4.3_research-workflow-implementation.md) | research 내장 워크플로우 + 템플릿/예시 + goal 8h+ 무인 + reports→org 이전 |
 | [v2.0.0_orchestration-and-harness-platform.md](v2.0.0_orchestration-and-harness-platform.md) | **2.0.0 우산** — Python 전면 재작성의 실행 계획(ADR-001). 오케스트레이션·하네스 플랫폼 + 기획 primitive 개선. ⚠️ 구 `v1.5.0`, rev4 본문은 ADR-001 로 초과 대체됨 |
-| [v2.1.0_docker-cloud-deploy-and-health-notify.md](v2.1.0_docker-cloud-deploy-and-health-notify.md) | **2.1.0** — Railway 클라우드 배포 + 봇 health 알림. 구 `v1.6.0` |
+| [v2.1.0_docker-cloud-deploy-and-health-notify.md](v2.1.0_docker-cloud-deploy-and-health-notify.md) | **2.1.0** — Railway 클라우드 배포 + **메신저(Discord/Slack) 재도입**(결정 16) + 봇 health 알림. 구 `v1.6.0` |
 | [v2.4.0_virtual-market-demand-simulation.md](v2.4.0_virtual-market-demand-simulation.md) | **가상 시장 수요검증 시뮬레이션 *기능*** — 캘리브레이션-증강 스크리닝(연구 결론: raw NO-GO). 구 `v1.9.0` |
 | [v2.x-dashboard-interaction.md](v2.x-dashboard-interaction.md) | 구 `v1.x` |
 | [v2.x-knowledge-ontology.md](v2.x-knowledge-ontology.md) | 구 `v1.x` |
